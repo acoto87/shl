@@ -22,19 +22,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef INCLUDE_SHL_WAVE_WRITER_H
 
 #ifdef __cplusplus
-extern C {
+extern "C" {
 #endif
 
 typedef short shl_sample_t;
-typedef enum { false, true } shl_bool_t;
+typedef enum { SHL_FALSE, SHL_TRUE } shl_bool_t;
 
 #define SHL_WAVE_BUFFER_SIZE (32768 * 2)
-#define SHL_WAVE_HEADER_SIZE 0x2C;
+#define SHL_WAVE_HEADER_SIZE 0x2C
 
 typedef struct _shl_wave_file
 {
-	unsigned char*  _buffer;
 	FILE*   		_file;
+	unsigned char*  _buffer;
 	long    		sample_rate;
 	long    		_sample_count;
 	long    		_buffer_pos;
@@ -43,10 +43,9 @@ typedef struct _shl_wave_file
 	// probably we need an allocator field here, a function pointer? and only if is null we use malloc
 } shl_wave_file; 
 
-// return -1 if couldn't create the buffer (Out of memory), -2 if couldn't create the file (Couldn't open WAVE file for writing), 0 otherwise
 extern shl_bool_t shl_wave_init( shl_wave_file *wave_file, long sample_rate, const char* filename );
 extern void 	  shl_wave_stereo( shl_wave_file *wave_file, int stereo );
-extern long 	  shl_wave_sample_count( shl_wave_file *wave_file ) const;
+extern long 	  shl_wave_sample_count( shl_wave_file *wave_file );
 extern shl_bool_t shl_wave_write( shl_wave_file *wave_file, const shl_sample_t *in, long count, int skip );
 extern shl_bool_t shl_wave_flush( shl_wave_file *wave_file, shl_bool_t close_file );
 
@@ -56,16 +55,26 @@ extern shl_bool_t shl_wave_flush( shl_wave_file *wave_file, shl_bool_t close_fil
 
 #ifdef SHL_WAVE_WRITER_IMPLEMENTATION
 
-shl_bool_t shl_wave_init( shl_wave_file *wave_file, long sample_rate, const char* filename );
+static shl_bool_t shl__wave_flush( shl_wave_file *wave_file )
 {
-	wave_file->buffer = (unsigned char*) malloc(SHL_WAVE_BUFFER_SIZE);
-	if ( !wave_file->buffer ) {
-		return false;
+	if ( wave_file->_buffer_pos && !fwrite( wave_file->_buffer, wave_file->_buffer_pos, 1, wave_file->_file ) ) {
+		return SHL_FALSE;
+	}
+
+	wave_file->_buffer_pos = 0;
+	return SHL_TRUE;
+}
+
+shl_bool_t shl_wave_init( shl_wave_file *wave_file, long sample_rate, const char* filename )
+{
+	wave_file->_buffer = (unsigned char*) malloc(SHL_WAVE_BUFFER_SIZE);
+	if ( !wave_file->_buffer ) {
+		return SHL_FALSE;
 	}
 
 	wave_file->_file = fopen(filename, "wb");
 	if ( !wave_file->_file ) {
-		return false;
+		return SHL_FALSE;
 	}
 
 	wave_file->sample_rate = sample_rate;
@@ -74,7 +83,7 @@ shl_bool_t shl_wave_init( shl_wave_file *wave_file, long sample_rate, const char
 	wave_file->_sample_count = 0;
 	wave_file->_buffer_pos = SHL_WAVE_HEADER_SIZE;
 
-	return true;
+	return SHL_TRUE;
 }
 
 void shl_wave_stereo( shl_wave_file *wave_file, int stereo )
@@ -82,7 +91,7 @@ void shl_wave_stereo( shl_wave_file *wave_file, int stereo )
 	wave_file->channel_count = stereo ? 2 : 1;
 }
 
-long shl_wave_sample_count( shl_wave_file *wave_file ) const;
+long shl_wave_sample_count( shl_wave_file *wave_file )
 {
 	return wave_file->_sample_count;
 }
@@ -90,11 +99,10 @@ long shl_wave_sample_count( shl_wave_file *wave_file ) const;
 shl_bool_t shl_wave_write( shl_wave_file *wave_file, const shl_sample_t *in, long count, int skip )
 {
 	wave_file->_sample_count += count;
-	while ( count )
-	{
+	while ( count ) {
 		if ( wave_file->_buffer_pos >= SHL_WAVE_BUFFER_SIZE ) {
-			if ( !shl_wave_flush( wave_file, false ) ) {
-				return false;
+			if ( !shl__wave_flush( wave_file ) ) {
+				return SHL_FALSE;
 			}
 		}
 			
@@ -114,61 +122,99 @@ shl_bool_t shl_wave_write( shl_wave_file *wave_file, const shl_sample_t *in, lon
 		wave_file->_buffer_pos = p - wave_file->_buffer;
 	}
 
-	return true;
+	return SHL_TRUE;
 }
 
 shl_bool_t shl_wave_flush( shl_wave_file *wave_file, int close_file )
 {
-	if ( wave_file->_buffer_pos && !fwrite( wave_file->_buffer, wave_file->_buffer_pos, 1, wafe_file->_file ) ) {
-		return false;
+	if ( !shl__wave_flush ( wave_file ) ) {
+		return SHL_FALSE;
 	}
 
-	wave_file->_buffer_pos = 0;
-	
 	if ( close_file ) {
 		// generate header
 		long ds = wave_file->_sample_count * sizeof (shl_sample_t);
 		long rs = SHL_WAVE_HEADER_SIZE - 8 + ds;
 		int frame_size = wave_file->channel_count * sizeof (shl_sample_t);
-		long bps =  wave_file->sample_rate * frame_size;
-		unsigned char header [SHL_WAVE_HEADER_SIZE] = {
+		long bps = wave_file->sample_rate * frame_size;
+		unsigned char header[SHL_WAVE_HEADER_SIZE] = {
 			'R','I','F','F',
-			rs, rs >> 8,           				// length of rest of file
+			rs, rs >> 8,           											// length of rest of file
 			rs >> 16, rs >> 24,
 			'W','A','V','E',
 			'f','m','t',' ',
-			0x10, 0, 0, 0,         				// size of fmt chunk
-			1, 0,                				// uncompressed format
-			wave_file->channel_count, 0,       	// channel count
-			rate, rate >> 8,     				// sample rate
-			rate >> 16, rate >> 24,
-			bps, bps >> 8,         				// bytes per second
+			0x10, 0, 0, 0,         											// size of fmt chunk
+			1, 0,                											// uncompressed format
+			wave_file->channel_count, 0,       								// channel count
+			wave_file->sample_rate, wave_file->sample_rate >> 8,     		// sample rate
+			wave_file->sample_rate >> 16, wave_file->sample_rate >> 24,
+			bps, bps >> 8,         											// bytes per second
 			bps >> 16, bps >> 24,
-			frame_size, 0,       				// bytes per sample frame
-			16, 0,               				// bits per sample
+			frame_size, 0,       											// bytes per sample frame
+			16, 0,               											// bits per sample
 			'd','a','t','a',
-			ds, ds >> 8, ds >> 16, ds >> 24		// size of sample data
-			// ...              				// sample data
+			ds, ds >> 8, ds >> 16, ds >> 24									// size of sample data
+			// ...              											// sample data
 		};
 		
 		// write header
-		if ( fseek( file, 0, SEEK_SET ) ) {
-			return false;
+		if ( fseek( wave_file->_file, 0, SEEK_SET ) ) {
+			return SHL_FALSE;
 		}
 		
-		if ( !fwrite( header, sizeof header, 1, file ) ) {
-			return false;
+		if ( !fwrite( header, sizeof header, 1, wave_file->_file ) ) {
+			return SHL_FALSE;
 		}
 		
-		if ( fclose( file ) ) {
-			return false;
+		if ( fclose( wave_file->_file ) ) {
+			return SHL_FALSE;
 		}
 
-		delete [] buf;
+		delete [] wave_file->_buffer;
 	}
 
-	return true;
+	return SHL_TRUE;
 }
 
 #endif // SHL_WAVE_WRITER_IMPLEMENTATION
+
+#ifdef SHL_WAVE_WRITER_TEST
+
+int main(int argc, char **argv)
+{
+	shl_wave_file wave_file = {};
+
+	long sample_rate = 44100;
+	long tone_hz = 256;
+	long wave_period = sample_rate / tone_hz;
+    long bytes_per_sample = sizeof (shl_sample_t);
+    long tone_volume = 3000;
+    long wave_pos = 0;
+
+	if ( !shl_wave_init( &wave_file, sample_rate, "out.wav" ) ) {
+		printf("Couldn't init wave file");
+		return -1;
+	}
+
+#define PI 3.14159265359f
+
+	long length = sample_rate * 60;
+	shl_sample_t *buffer = (shl_sample_t*)malloc(length * sizeof(shl_sample_t));
+
+    for (int i = 0; i < length; i++)
+    {
+        float t = 2.0f * PI * (float)i / (float)wave_period;
+        float sine_value = sinf(t);
+        float sample_value = sine_value * tone_volume;
+        buffer[i] = (shl_sample_t)sample_value;
+    }
+
+    shl_wave_write( &wave_file, buffer, length, 1 );
+    shl_wave_flush( &wave_file, true );
+
+	return 0;
+}
+
+#endif
+
 #endif // INCLUDE_SHL_WAVE_WRITER_H
