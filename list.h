@@ -21,6 +21,7 @@
     extern void typeName ## Insert(typeName *list, int32_t index, itemType value); \
     extern itemType typeName ## Get(typeName *list, int32_t index); \
     extern bool typeName ## Contains(typeName *list, itemType value); \
+    extern void typeName ## Clear(typeName *list); \
     extern bool typeName ## RemoveByIndex(typeName *list, int32_t index); \
     extern bool typeName ## RemoveByValue(typeName *list, itemType value);
 
@@ -53,6 +54,9 @@
     \
     void typeName ## Insert(typeName *list, int32_t index, itemType value) \
     { \
+        if (index < 0 && index > list->count) \
+            return; \
+        \
         if (list->count == list->loadFactor) \
             typeName ## __Resize(list); \
         \
@@ -85,6 +89,11 @@
             return defaultValue; \
         \
         return list->items[index]; \
+    } \
+    \
+    void typeName ## Clear(typeName *list) \
+    { \
+        list->count = 0; \
     } \
     \
     bool typeName ## RemoveByIndex(typeName *list, int32_t index) \

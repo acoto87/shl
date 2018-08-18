@@ -47,11 +47,11 @@ typedef struct _shl_wave_file
     int     		channelCount;
 } shlWaveFile;
 
-extern bool shlWaveInit(shlWaveFile *waveFile, long sampleRate, const char* filename);
-extern void shlWaveStereo(shlWaveFile *waveFile, bool stereo);
-extern long shlWaveSampleCount(shlWaveFile *waveFile);
-extern bool shlWaveWrite(shlWaveFile *waveFile, const shl_sample_t *in, long count, int skip);
-extern bool shlWaveFlush(shlWaveFile *waveFile, bool closeFile);
+bool shlWaveInit(shlWaveFile *waveFile, long sampleRate, const char* filename);
+void shlWaveStereo(shlWaveFile *waveFile, bool stereo);
+long shlWaveSampleCount(shlWaveFile *waveFile);
+bool shlWaveWrite(shlWaveFile *waveFile, const shl_sample_t *in, long count, int skip);
+bool shlWaveFlush(shlWaveFile *waveFile, bool closeFile);
 
 #ifdef __cplusplus
 }
