@@ -114,9 +114,7 @@
         for(int i = 0; i < oldCapacity; i++) \
         { \
             if(old[i].active) \
-            { \
                 typeName ## __insert(map, old[i].key, old[i].value); \
-            } \
         } \
         free(old); \
     } \
