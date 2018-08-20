@@ -8,7 +8,8 @@
 #define FNV_PRIME_32 0x01000193
 #define FNV_OFFSET_32 0x811c9dc5
 
-uint32_t fnv32(const char* data) {
+uint32_t fnv32(const char* data) 
+{
     uint32_t hash = FNV_OFFSET_32;
     while(*data != 0)
         hash = (*data++ ^ hash) * FNV_PRIME_32;
@@ -16,21 +17,26 @@ uint32_t fnv32(const char* data) {
     return hash;
 }
 
+int equalsStr(char *s1, char *s2)
+{
+    return strcmp(s1, s2) == 0;
+}
+
 shlDeclareMap(SSMap, char*, char*)
-shlDefineMap(SSMap, char*, char*, fnv32, strcmp, NULL)
+shlDefineMap(SSMap, char*, char*, fnv32, equalsStr, NULL)
 
 uint32_t intHash(const uint32_t x)
 {
     return x;
 }
 
-int cmprInt(const uint32_t a, const uint32_t b)
+int equalsInt(const uint32_t a, const uint32_t b)
 {
-    return a < b ? -1 : (a > b ? 1 : 0);
+    return a == b;
 }
 
 shlDeclareMap(IntMap, uint32_t, uint32_t)
-shlDefineMap(IntMap, uint32_t, uint32_t, intHash, cmprInt, 0)
+shlDefineMap(IntMap, uint32_t, uint32_t, intHash, equalsInt, 0)
 
 char *strings[] =
 {

@@ -50,10 +50,15 @@
     void typeName ## Free(typeName *list) \
     { \
         free(list->items); \
+        list->items = 0; \
+        list->count = 0; \
     } \
     \
     void typeName ## Insert(typeName *list, int32_t index, itemType value) \
     { \
+        if (!list->items) \
+            return; \
+        \
         if (index < 0 && index > list->count) \
             return; \
         \
@@ -74,6 +79,12 @@
     \
     bool typeName ## Contains(typeName *list, itemType value) \
     { \
+        if (!list->items) \
+            return false; \
+        \
+        if (equalsFn == 0) \
+            return false; \
+        \
         for(int i = 0; i < list->count; i++) \
         { \
             if (equalsFn(list->items[i], value)) \
@@ -85,19 +96,20 @@
     \
     itemType typeName ## Get(typeName *list, int32_t index) \
     { \
+        if (!list->items) \
+            return defaultValue; \
+        \
         if (index < 0 && index >= list->count) \
             return defaultValue; \
         \
         return list->items[index]; \
     } \
     \
-    void typeName ## Clear(typeName *list) \
-    { \
-        list->count = 0; \
-    } \
-    \
     bool typeName ## RemoveByIndex(typeName *list, int32_t index) \
     { \
+        if (!list->items) \
+            return false; \
+        \
         if (index < 0 && index >= list->count) \
             return false; \
         \
@@ -110,6 +122,12 @@
     \
     bool typeName ## RemoveByValue(typeName *list, itemType value) \
     { \
+        if (!list->items) \
+            return false; \
+        \
+        if (equalsFn == 0) \
+            return false; \
+        \
         for(int i = 0; i < list->count; i++) \
         { \
             if (equalsFn(list->items[i], value)) \
@@ -117,6 +135,14 @@
         } \
         \
         return false; \
+    } \
+    \
+    void typeName ## Clear(typeName *list) \
+    { \
+        if (!list->items) \
+            return; \
+        \
+        list->count = 0; \
     }
 
 #endif // SHL_LIST_H

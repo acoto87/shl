@@ -19,12 +19,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define HASH_CONSTANT 2654435769u
-
-uint32_t fibHash(uint32_t hash, uint32_t shift) {
-    return (hash * HASH_CONSTANT) >> shift;
-}
-
 #define shlDeclareMap(typeName, keyType, valueType) \
     typedef struct { \
         bool active; \
@@ -46,10 +40,17 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
     extern void typeName ## Free(typeName* map); \
     extern void typeName ## Set(typeName* map, keyType key, valueType value); \
     extern valueType typeName ## Get(typeName* map, keyType key); \
-    extern bool typeName ## Remove(typeName* map, keyType key);
+    extern bool typeName ## Remove(typeName* map, keyType key); \
+    extern void typeName ## Clear(typeName* map);
 
-#define shlDefineMap(typeName, keyType, valueType, hashFn, compareFn, defaultValue) \
-    static uint32_t typeName ## __FindEmptyCell(typeName* map, uint32_t index) \
+#define shlDefineMap(typeName, keyType, valueType, hashFn, equalsFn, defaultValue) \
+    static uint32_t typeName ## __fibHash(uint32_t hash, uint32_t shift) \
+    { \
+        const uint32_t hashConstant = 2654435769u; \
+        return (hash * hashConstant) >> shift; \
+    } \
+    \
+    static uint32_t typeName ## __findEmptyCell(typeName* map, uint32_t index) \
     { \
         for(int i = 0; i < map->capacity; i++) \
         { \
@@ -60,14 +61,14 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
         return -1; \
     } \
     \
-    static bool typeName ## __Insert(typeName* map, keyType key, valueType value) \
+    static bool typeName ## __insert(typeName* map, keyType key, valueType value) \
     { \
         uint32_t hash, cell, next; \
-        hash = cell = fibHash(hashFn(key), map->shift); \
+        hash = cell = typeName ## __fibHash(hashFn(key), map->shift); \
         \
         while (map->cells[cell].active && map->cells[cell].next >= 0) \
         { \
-            if(map->cells[cell].hash == hash && compareFn(map->cells[cell].key, key) == 0) \
+            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
             { \
                 map->cells[cell].value = value; \
                 return true; \
@@ -78,14 +79,14 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
         \
         if (map->cells[cell].active) \
         { \
-            if(map->cells[cell].hash == hash && compareFn(map->cells[cell].key, key) == 0) \
+            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
             { \
                 map->cells[cell].value = value; \
                 return true; \
             } \
         } \
         \
-        next = typeName ## __FindEmptyCell(map, cell); \
+        next = typeName ## __findEmptyCell(map, cell); \
         if (cell != next) \
         { \
             map->cells[cell].next = next; \
@@ -100,7 +101,7 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
         return true; \
     } \
     \
-    static void typeName ## __Resize(typeName* map) \
+    static void typeName ## __resize(typeName* map) \
     { \
         uint32_t oldCapacity = map->capacity; \
         typeName ## _Cell_* old = map->cells; \
@@ -114,7 +115,7 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
         { \
             if(old[i].active) \
             { \
-                typeName ## __Insert(map, old[i].key, old[i].value); \
+                typeName ## __insert(map, old[i].key, old[i].value); \
             } \
         } \
         free(old); \
@@ -132,26 +133,34 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
     void typeName ## Free(typeName* map) \
     { \
         free(map->cells); \
+        map->cells = 0; \
+        map->count = 0; \
     } \
     \
     void typeName ## Set(typeName* map, keyType key, valueType value) \
     { \
-        if(map->count == map->loadFactor) \
-            typeName ## __Resize(map); \
+        if (!map->cells) \
+            return; \
         \
-        typeName ## __Insert(map, key, value); \
+        if(map->count == map->loadFactor) \
+            typeName ## __resize(map); \
+        \
+        typeName ## __insert(map, key, value); \
     } \
     \
     valueType typeName ## Get(typeName* map, keyType key) \
     { \
+        if (!map->cells) \
+            return defaultValue; \
+        \
         uint32_t cell, hash; \
-        hash = cell = fibHash(hashFn(key), map->shift); \
+        hash = cell = typeName ## __fibHash(hashFn(key), map->shift); \
         \
         valueType value = defaultValue; \
         \
         while (map->cells[cell].active) \
         { \
-            if(map->cells[cell].hash == hash && compareFn(map->cells[cell].key, key) == 0) \
+            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
             { \
                 value = map->cells[cell].value; \
                 break; \
@@ -170,14 +179,17 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
     \
     bool typeName ## Contains(typeName* map, keyType key) \
     { \
+        if (!map->cells) \
+            return false; \
+        \
         uint32_t cell, hash; \
-        hash = cell = fibHash(hashFn(key), map->shift); \
+        hash = cell = typeName ## __fibHash(hashFn(key), map->shift); \
         \
         bool found = false; \
         \
         while (map->cells[cell].active) \
         { \
-            if(map->cells[cell].hash == hash && compareFn(map->cells[cell].key, key) == 0) \
+            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
             { \
                 found = true; \
                 break; \
@@ -196,13 +208,16 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
     \
     bool typeName ## Remove(typeName* map, keyType key) \
     { \
+        if (!map->cells) \
+            return false; \
+        \
         uint32_t prev, cell, hash; \
         \
-        hash = prev = cell = fibHash(hashFn(key), map->shift); \
+        hash = prev = cell = typeName ## __fibHash(hashFn(key), map->shift); \
         \
         while (map->cells[cell].active) \
         { \
-            if(map->cells[cell].hash == hash && compareFn(map->cells[cell].key, key) == 0) \
+            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
             { \
                 map->cells[prev].next = map->cells[cell].next; \
                 map->cells[cell].active = false; \
@@ -219,6 +234,19 @@ uint32_t fibHash(uint32_t hash, uint32_t shift) {
         } \
         map->count--; \
         return true; \
+    } \
+    \
+    void typeName ## Clear(typeName* map) \
+    { \
+        if (!map->cells) \
+            return; \
+        \
+        for(int i = 0; i < map->capacity; i++) \
+        { \
+            map->cells[i].active = false; \
+        } \
+        \
+        map->count = 0; \
     }
 
 #endif //SHL_MAP_H

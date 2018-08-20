@@ -48,10 +48,15 @@
     void typeName ## Free(typeName *stack) \
     { \
         free(stack->items); \
+        stack->items = 0; \
+        stack->count = 0; \
     } \
     \
     void typeName ## Push(typeName *stack, itemType value) \
     { \
+        if (!stack->items) \
+            return; \
+        \
         if (stack->count == stack->loadFactor) \
             typeName ## __Resize(stack); \
         \
@@ -61,7 +66,7 @@
     \
     itemType typeName ## Peek(typeName *stack) \
     { \
-        if (stack->count == 0) \
+        if (!stack->items || stack->count == 0) \
             return defaultValue; \
         \
         return stack->items[stack->count - 1]; \
@@ -69,7 +74,7 @@
     \
     itemType typeName ## Pop(typeName *stack) \
     { \
-        if (stack->count == 0) \
+        if (!stack->items || stack->count == 0) \
             return defaultValue; \
         \
         itemType item = stack->items[stack->count-1]; \
@@ -79,6 +84,12 @@
     \
     bool typeName ## Contains(typeName *stack, itemType value) \
     { \
+        if (!stack->items) \
+            return defaultValue; \
+        \
+        if (equalsFn == 0) \
+            return false; \
+        \
         for(int i = 0; i < stack->count; i++) \
         { \
             if (equalsFn(stack->items[i], value)) \
@@ -90,6 +101,9 @@
     \
     void typeName ## Clear(typeName *stack) \
     { \
+        if (!stack->items) \
+            return; \
+        \
         stack->count = 0; \
     }
 

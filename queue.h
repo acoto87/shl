@@ -35,7 +35,7 @@
         queue->items = (itemType *)calloc(queue->capacity, sizeof(itemType)); \
         \
         for(int i = 0; i < queue->count; i++) \
-            queue->items[i] = old[(queue->head + i) % queue->count]; \
+            queue->items[i] = old[(queue->head + i) % oldCapacity]; \
         \
         queue->head = 0; \
     } \
@@ -52,10 +52,15 @@
     void typeName ## Free(typeName *queue) \
     { \
         free(queue->items); \
+        queue->items = 0; \
+        queue->count = 0; \
     } \
     \
     void typeName ## Enqueue(typeName *queue, itemType value) \
     { \
+        if (!queue->items) \
+            return; \
+        \
         if (queue->count == queue->loadFactor) \
             typeName ## __Resize(queue); \
         \
@@ -65,7 +70,7 @@
     \
     itemType typeName ## Peek(typeName *queue) \
     { \
-        if (queue->count == 0) \
+        if (!queue->items || queue->count == 0) \
             return defaultValue; \
         \
         return queue->items[queue->head]; \
@@ -73,7 +78,7 @@
     \
     itemType typeName ## Dequeue(typeName *queue) \
     { \
-        if (queue->count == 0) \
+        if (!queue->items || queue->count == 0) \
             return defaultValue; \
         \
         itemType value = queue->items[queue->head]; \
@@ -84,9 +89,15 @@
     \
     bool typeName ## Contains(typeName *queue, itemType value) \
     { \
+        if (!queue->items) \
+            return defaultValue; \
+        \
+        if (equalsFn == 0) \
+            return defaultValue; \
+        \
         for(int i = 0; i < queue->count; i++) \
         { \
-            if (equalsFn(queue->items[(queue->head + i) % queue->count], value)) \
+            if (equalsFn(queue->items[(queue->head + i) % queue->capacity], value)) \
                 return true; \
         } \
         \
@@ -95,6 +106,9 @@
     \
     void typeName ## Clear(typeName *queue) \
     { \
+        if (!queue->items) \
+            return; \
+        \
         queue->head = 0; \
         queue->count = 0; \
     }
