@@ -15,33 +15,33 @@
         itemType *items; \
     } typeName; \
     \
-    extern void typeName ## Init(typeName *list); \
-    extern void typeName ## Free(typeName *list); \
-    extern void typeName ## Push(typeName *list, itemType value); \
-    extern bool typeName ## Contains(typeName *list, itemType value); \
-    extern void typeName ## Clear(typeName *list); \
-    extern itemType typeName ## Peek(typeName *list); \
-    extern itemType typeName ## Pop(typeName *list); \
+    void typeName ## Init(typeName *list); \
+    void typeName ## Free(typeName *list); \
+    void typeName ## Push(typeName *list, itemType value); \
+    bool typeName ## Contains(typeName *list, itemType value); \
+    void typeName ## Clear(typeName *list); \
+    itemType typeName ## Peek(typeName *list); \
+    itemType typeName ## Pop(typeName *list); \
 
 #define shlDefineStack(typeName, itemType, equalsFn, defaultValue) \
-    void typeName ## __Resize(typeName *stack) \
+    void typeName ## __resize(typeName *stack) \
     { \
         uint32_t oldCapacity = stack->capacity; \
-        itemType* old = stack->items; \
+        uint32_t oldLoadFactor = stack->loadFactor; \
+        itemType *old = stack->items; \
         \
-        stack->loadFactor = oldCapacity; \
+        stack->loadFactor = oldLoadFactor << 1; \
         stack->capacity = oldCapacity << 1; \
         stack->items = (itemType *)calloc(stack->capacity, sizeof(itemType)); \
         \
-        for(int i = 0; i < stack->count; i++) \
-            stack->items[i] = old[i]; \
+        memcpy(stack->items, old, stack->count * sizeof(itemType)); \
     } \
     \
     void typeName ## Init(typeName *stack) \
     { \
         stack->capacity = 8; \
+        stack->loadFactor = 8; \
         stack->count = 0; \
-        stack->loadFactor = 4; \
         stack->items = (itemType *)calloc(stack->capacity, sizeof(itemType)); \
     } \
     \
@@ -58,7 +58,7 @@
             return; \
         \
         if (stack->count == stack->loadFactor) \
-            typeName ## __Resize(stack); \
+            typeName ## __resize(stack); \
         \
         stack->items[stack->count] = value; \
         stack->count++; \
@@ -77,7 +77,7 @@
         if (!stack->items || stack->count == 0) \
             return defaultValue; \
         \
-        itemType item = stack->items[stack->count-1]; \
+        itemType item = stack->items[stack->count - 1]; \
         stack->count--; \
         return item; \
     } \
@@ -85,12 +85,9 @@
     bool typeName ## Contains(typeName *stack, itemType value) \
     { \
         if (!stack->items) \
-            return defaultValue; \
-        \
-        if (equalsFn == 0) \
             return false; \
         \
-        for(int i = 0; i < stack->count; i++) \
+        for(int32_t i = 0; i < stack->count; i++) \
         { \
             if (equalsFn(stack->items[i], value)) \
                 return true; \

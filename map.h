@@ -22,26 +22,26 @@
 #define shlDeclareMap(typeName, keyType, valueType) \
     typedef struct { \
         bool active; \
+        uint32_t hash; \
         int32_t next; \
         keyType key; \
         valueType value; \
-        uint32_t hash; \
-    } typeName ## _Cell_; \
+    } typeName ## __Entry__; \
     \
     typedef struct { \
-        typeName ## _Cell_* cells; \
+        typeName ## __Entry__* entries; \
         uint32_t count; \
         uint32_t capacity; \
         uint32_t loadFactor; \
         uint32_t shift; \
     } typeName; \
     \
-    extern void typeName ## Init(typeName* map); \
-    extern void typeName ## Free(typeName* map); \
-    extern void typeName ## Set(typeName* map, keyType key, valueType value); \
-    extern valueType typeName ## Get(typeName* map, keyType key); \
-    extern bool typeName ## Remove(typeName* map, keyType key); \
-    extern void typeName ## Clear(typeName* map);
+    void typeName ## Init(typeName* map); \
+    void typeName ## Free(typeName* map); \
+    void typeName ## Set(typeName* map, keyType key, valueType value); \
+    valueType typeName ## Get(typeName* map, keyType key); \
+    bool typeName ## Remove(typeName* map, keyType key); \
+    void typeName ## Clear(typeName* map);
 
 #define shlDefineMap(typeName, keyType, valueType, hashFn, equalsFn, defaultValue) \
     static uint32_t typeName ## __fibHash(uint32_t hash, uint32_t shift) \
@@ -50,11 +50,11 @@
         return (hash * hashConstant) >> shift; \
     } \
     \
-    static uint32_t typeName ## __findEmptyCell(typeName* map, uint32_t index) \
+    static uint32_t typeName ## __findEmptyBucket(typeName* map, uint32_t index) \
     { \
-        for(int i = 0; i < map->capacity; i++) \
+        for(int32_t i = 0; i < map->capacity; i++) \
         { \
-            if (!map->cells[(index + i) % map->capacity].active) \
+            if (!map->entries[(index + i) % map->capacity].active) \
                 return (index + i) % map->capacity; \
         } \
         \
@@ -63,40 +63,38 @@
     \
     static bool typeName ## __insert(typeName* map, keyType key, valueType value) \
     { \
-        uint32_t hash, cell, next; \
-        hash = cell = typeName ## __fibHash(hashFn(key), map->shift); \
+        uint32_t hash, index, next; \
+        hash = index = typeName ## __fibHash(hashFn(key), map->shift); \
         \
-        while (map->cells[cell].active && map->cells[cell].next >= 0) \
+        while (map->entries[index].active && map->entries[index].next >= 0) \
         { \
-            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
+            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
-                map->cells[cell].value = value; \
+                map->entries[index].value = value; \
                 return true; \
             } \
             \
-            cell = map->cells[cell].next; \
+            index = map->entries[index].next; \
         } \
         \
-        if (map->cells[cell].active) \
+        if (map->entries[index].active) \
         { \
-            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
+            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
-                map->cells[cell].value = value; \
+                map->entries[index].value = value; \
                 return true; \
             } \
         } \
         \
-        next = typeName ## __findEmptyCell(map, cell); \
-        if (cell != next) \
-        { \
-            map->cells[cell].next = next; \
-        } \
+        next = typeName ## __findEmptyBucket(map, index); \
+        if (index != next) \
+            map->entries[index].next = next; \
         \
-        map->cells[next].active = true; \
-        map->cells[next].key = key; \
-        map->cells[next].value = value; \
-        map->cells[next].hash = hash; \
-        map->cells[next].next = -1; \
+        map->entries[next].active = true; \
+        map->entries[next].key = key; \
+        map->entries[next].value = value; \
+        map->entries[next].hash = hash; \
+        map->entries[next].next = -1; \
         map->count++; \
         return true; \
     } \
@@ -104,14 +102,14 @@
     static void typeName ## __resize(typeName* map) \
     { \
         uint32_t oldCapacity = map->capacity; \
-        typeName ## _Cell_* old = map->cells; \
+        typeName ## __Entry__* old = map->entries; \
         \
         map->loadFactor = oldCapacity; \
         map->capacity = 1 << (32 - (--map->shift)); \
-        map->cells = calloc(map->capacity, sizeof(typeName ## _Cell_)); \
+        map->entries = calloc(map->capacity, sizeof(typeName ## __Entry__)); \
         map->count = 0; \
         \
-        for(int i = 0; i < oldCapacity; i++) \
+        for(int32_t i = 0; i < oldCapacity; i++) \
         { \
             if(old[i].active) \
                 typeName ## __insert(map, old[i].key, old[i].value); \
@@ -123,21 +121,21 @@
     { \
         map->shift = 29; \
         map->capacity = 8; \
+        map->loadFactor = 6; \
         map->count = 0; \
-        map->loadFactor = 4; \
-        map->cells = (typeName ## _Cell_ *)calloc(map->capacity, sizeof(typeName ## _Cell_)); \
+        map->entries = (typeName ## __Entry__ *)calloc(map->capacity, sizeof(typeName ## __Entry__)); \
     } \
     \
     void typeName ## Free(typeName* map) \
     { \
-        free(map->cells); \
-        map->cells = 0; \
+        free(map->entries); \
+        map->entries = 0; \
         map->count = 0; \
     } \
     \
     void typeName ## Set(typeName* map, keyType key, valueType value) \
     { \
-        if (!map->cells) \
+        if (!map->entries) \
             return; \
         \
         if(map->count == map->loadFactor) \
@@ -148,28 +146,28 @@
     \
     valueType typeName ## Get(typeName* map, keyType key) \
     { \
-        if (!map->cells) \
+        if (!map->entries) \
             return defaultValue; \
         \
-        uint32_t cell, hash; \
-        hash = cell = typeName ## __fibHash(hashFn(key), map->shift); \
+        uint32_t index, hash; \
+        hash = index = typeName ## __fibHash(hashFn(key), map->shift); \
         \
         valueType value = defaultValue; \
         \
-        while (map->cells[cell].active) \
+        while (map->entries[index].active) \
         { \
-            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
+            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
-                value = map->cells[cell].value; \
+                value = map->entries[index].value; \
                 break; \
             } \
             \
-            if (map->cells[cell].next < 0) \
+            if (map->entries[index].next < 0) \
             { \
                 break; \
             } \
             \
-            cell = map->cells[cell].next; \
+            index = map->entries[index].next; \
         } \
         \
         return value; \
@@ -177,28 +175,28 @@
     \
     bool typeName ## Contains(typeName* map, keyType key) \
     { \
-        if (!map->cells) \
+        if (!map->entries) \
             return false; \
         \
-        uint32_t cell, hash; \
-        hash = cell = typeName ## __fibHash(hashFn(key), map->shift); \
+        uint32_t index, hash; \
+        hash = index = typeName ## __fibHash(hashFn(key), map->shift); \
         \
         bool found = false; \
         \
-        while (map->cells[cell].active) \
+        while (map->entries[index].active) \
         { \
-            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
+            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
                 found = true; \
                 break; \
             } \
             \
-            if (map->cells[cell].next < 0) \
+            if (map->entries[index].next < 0) \
             { \
                 break; \
             } \
             \
-            cell = map->cells[cell].next; \
+            index = map->entries[index].next; \
         } \
         \
         return found; \
@@ -206,29 +204,29 @@
     \
     bool typeName ## Remove(typeName* map, keyType key) \
     { \
-        if (!map->cells) \
+        if (!map->entries) \
             return false; \
         \
-        uint32_t prev, cell, hash; \
+        uint32_t prevIndex, index, hash; \
         \
-        hash = prev = cell = typeName ## __fibHash(hashFn(key), map->shift); \
+        hash = prevIndex = index = typeName ## __fibHash(hashFn(key), map->shift); \
         \
-        while (map->cells[cell].active) \
+        while (map->entries[index].active) \
         { \
-            if(map->cells[cell].hash == hash && equalsFn(map->cells[cell].key, key)) \
+            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
-                map->cells[prev].next = map->cells[cell].next; \
-                map->cells[cell].active = false; \
+                map->entries[prevIndex].next = map->entries[index].next; \
+                map->entries[index].active = false; \
                 break; \
             } \
             \
-            if (map->cells[cell].next < 0) \
+            if (map->entries[index].next < 0) \
             { \
                 return false; \
             } \
             \
-            prev = cell; \
-            cell = map->cells[cell].next; \
+            prevIndex = index; \
+            index = map->entries[index].next; \
         } \
         map->count--; \
         return true; \
@@ -236,13 +234,11 @@
     \
     void typeName ## Clear(typeName* map) \
     { \
-        if (!map->cells) \
+        if (!map->entries) \
             return; \
         \
-        for(int i = 0; i < map->capacity; i++) \
-        { \
-            map->cells[i].active = false; \
-        } \
+        for(int32_t i = 0; i < map->capacity; i++) \
+            map->entries[i].active = false; \
         \
         map->count = 0; \
     }

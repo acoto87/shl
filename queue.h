@@ -16,26 +16,34 @@
         itemType *items; \
     } typeName; \
     \
-    extern void typeName ## Init(typeName *queue); \
-    extern void typeName ## Free(typeName *queue); \
-    extern void typeName ## Enqueue(typeName *queue, itemType value); \
-    extern itemType typeName ## Peek(typeName *queue); \
-    extern itemType typeName ## Dequeue(typeName *queue); \
-    extern bool typeName ## Contains(typeName *queue, itemType value); \
-    extern void typeName ## Clear(typeName *queue); \
+    void typeName ## Init(typeName *queue); \
+    void typeName ## Free(typeName *queue); \
+    void typeName ## Push(typeName *queue, itemType value); \
+    itemType typeName ## Peek(typeName *queue); \
+    itemType typeName ## Pop(typeName *queue); \
+    bool typeName ## Contains(typeName *queue, itemType value); \
+    void typeName ## Clear(typeName *queue); \
     
 #define shlDefineQueue(typeName, itemType, equalsFn, defaultValue) \
-    void typeName ## __Resize(typeName *queue) \
+    void typeName ## __resize(typeName *queue) \
     { \
         uint32_t oldCapacity = queue->capacity; \
+        uint32_t oldLoadFactor = queue->loadFactor; \
         itemType* old = queue->items; \
         \
-        queue->loadFactor = oldCapacity; \
+        queue->loadFactor = oldLoadFactor << 1; \
         queue->capacity = oldCapacity << 1; \
         queue->items = (itemType *)calloc(queue->capacity, sizeof(itemType)); \
         \
-        for(int i = 0; i < queue->count; i++) \
-            queue->items[i] = old[(queue->head + i) % oldCapacity]; \
+        if (queue->head + queue->count > oldCapacity) \
+        { \
+            memcpy(queue->items, old + queue->head, (oldCapacity - queue->head) * sizeof(itemType)); \
+            memcpy(queue->items + oldCapacity - queue->head, old, ((queue->head + queue->count) % oldCapacity) * sizeof(itemType)); \
+        } \
+        else \
+        { \
+            memcpy(queue->items, old + queue->head, queue->count * sizeof(itemType)); \
+        } \
         \
         queue->head = 0; \
     } \
@@ -43,8 +51,8 @@
     void typeName ## Init(typeName *queue) \
     { \
         queue->capacity = 8; \
-        queue->count = 0; \
         queue->loadFactor = 8; \
+        queue->count = 0; \
         queue->head = 0; \
         queue->items = (itemType *)calloc(queue->capacity, sizeof(itemType)); \
     } \
@@ -56,15 +64,15 @@
         queue->count = 0; \
     } \
     \
-    void typeName ## Enqueue(typeName *queue, itemType value) \
+    void typeName ## Push(typeName *queue, itemType value) \
     { \
         if (!queue->items) \
             return; \
         \
         if (queue->count == queue->loadFactor) \
-            typeName ## __Resize(queue); \
+            typeName ## __resize(queue); \
         \
-        queue->items[queue->count % queue->capacity] = value; \
+        queue->items[(queue->head + queue->count) % queue->capacity] = value; \
         queue->count++; \
     } \
     \
@@ -76,7 +84,7 @@
         return queue->items[queue->head]; \
     } \
     \
-    itemType typeName ## Dequeue(typeName *queue) \
+    itemType typeName ## Pop(typeName *queue) \
     { \
         if (!queue->items || queue->count == 0) \
             return defaultValue; \
@@ -90,12 +98,9 @@
     bool typeName ## Contains(typeName *queue, itemType value) \
     { \
         if (!queue->items) \
-            return defaultValue; \
+            return false; \
         \
-        if (equalsFn == 0) \
-            return defaultValue; \
-        \
-        for(int i = 0; i < queue->count; i++) \
+        for(int32_t i = 0; i < queue->count; i++) \
         { \
             if (equalsFn(queue->items[(queue->head + i) % queue->capacity], value)) \
                 return true; \

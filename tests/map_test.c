@@ -1,10 +1,83 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <string.h>
-#include <ctype.h>
+#include <assert.h>
 
 #include "../map.h"
 
+static const int32_t count = 100000;
+
+static float getTime()
+{
+    return (float)clock() / CLOCKS_PER_SEC;
+}
+
+// value type tests
+int intHash(const int x)
+{
+    return x;
+}
+
+int equalsInt(const int a, const int b)
+{
+    return a == b;
+}
+
+shlDeclareMap(IntMap, int, int)
+shlDefineMap(IntMap, int, int, intHash, equalsInt, 0)
+
+void valueTypeTest()
+{
+    float start, end;
+
+    IntMap map;
+    IntMapInit(&map);
+
+    printf("--- Start test 1: add %d objects ---\n", count);
+    start = getTime();
+    for(int i = 0; i < count; i++)
+    {
+        int key = i;
+        IntMapSet(&map, key, key*key);
+        int value = IntMapGet(&map, key);
+        assert(value == key*key);
+    }
+    end = getTime();
+    printf("Map count and capacity: (%d, %d)\n", map.count, map.capacity);
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 1: add %d objects ---\n", count);
+
+    printf("\n");
+
+    printf("--- Start test 2: contains %d objects ---\n", count/2);
+    start = getTime();
+    for(int i = 0; i < count/2; i++)
+    {
+        int key = rand() % count;
+        assert(IntMapContains(&map, key));
+    }
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 2: contains %d objects ---\n", count/2);
+
+    printf("\n");
+
+    printf("--- Start test 3: set existing %d objects ---\n", count/2);
+    start = getTime();
+    for(int i = 0; i < count/2; i++)
+    {
+        int key = rand() % count;
+        IntMapSet(&map, key, key);
+        int value = IntMapGet(&map, key);
+        assert(key == value);
+    }
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 3: set existing %d objects ---\n", count/2);
+}
+
+// reference type tests
 #define FNV_PRIME_32 0x01000193
 #define FNV_OFFSET_32 0x811c9dc5
 
@@ -17,7 +90,7 @@ uint32_t fnv32(const char* data)
     return hash;
 }
 
-int equalsStr(char *s1, char *s2)
+int equalsStr(const char *s1, const char *s2)
 {
     return strcmp(s1, s2) == 0;
 }
@@ -25,182 +98,100 @@ int equalsStr(char *s1, char *s2)
 shlDeclareMap(SSMap, char*, char*)
 shlDefineMap(SSMap, char*, char*, fnv32, equalsStr, NULL)
 
-uint32_t intHash(const uint32_t x)
+char* generateString()
 {
-    return x;
+    const int stringLength = 50;
+    char *s = (char*)calloc(stringLength + 1, sizeof(char));
+    
+    for(int i = 0; i < 50; i++)
+        s[i] = rand() % 27 + 97;
+    
+    return s;
 }
 
-int equalsInt(const uint32_t a, const uint32_t b)
-{
-    return a == b;
-}
-
-shlDeclareMap(IntMap, uint32_t, uint32_t)
-shlDefineMap(IntMap, uint32_t, uint32_t, intHash, equalsInt, 0)
-
-char *strings[] =
-{
-    "tvnccxxgqo",
-    "fssyaikgij",
-    "dehnxzqjek",
-    "mmtlycyoos",
-    "uieqwwqnxg",
-    "zqqaifqaai",
-    "nataxfclgc",
-    "lpqksqcyjs",
-    "jxzbmltzhe",
-    "nbegmljgbf",
-    "pabugplwwk",
-    "nophwmwkcd",
-    "vhttftmhno",
-    "wqsnhpxzcb",
-    "ajfvkpcrrf",
-    "wkoyyehqkn",
-    "vhfrjzkrcr",
-    "jrhyulcbbd",
-    "xoneyrakfc",
-    "mbgnqwjnhy",
-    "ryclbmddzb",
-    "sraiyehhdo",
-    "zqjznjmpcb",
-    "fvopqdoglz",
-    "fhekhnzqrc",
-    "yqriapjuof",
-    "moybhieaim",
-    "gvewlhatel",
-    "kdkdwmuoct",
-    "ujqxagumfw",
-    "khakhplrcs",
-    "eqgmauxywq",
-    "qeozrptxtz",
-    "gaeaifvqhk",
-    "ttendndgkr",
-    "avaxeshimd",
-    "fsaruycfhl",
-    "gfuytoqsrp",
-    "msphdbwvsw",
-    "jrqoyxgtaf",
-    "qzdelxaexh",
-    "okwrycylrh",
-    "hzfecantgt",
-    "rrjlkgnrbq",
-    "ccxqqtpszj",
-    "phufpxfqum",
-    "idsgyiupnz",
-    "ixikhqqome",
-    "vmwimuduig",
-    "tqaxnbfqvb",
-    "ihpdwxqvjf",
-    "jwwpuopulw",
-    "uhztpeabix",
-    "wdnjdfuuco",
-    "siwbslsbbt",
-    "qprkfnycez",
-    "cciwkkpthd",
-    "afcszzjyhu",
-    "cmdtlxzeeq",
-    "gwfnbfxxau",
-    "saifgbqnhq",
-    "kdssfegewf",
-    "amrgbgbcpi",
-    "zvrbvsfqpw",
-    "zzcomcwbxr",
-    "svhtimtvbk",
-    "zawimzhkkz",
-    "acjhsuiies",
-    "qazhmcfbih",
-    "fsetobdlct",
-    "qvbsizfonr",
-    "djxjuptbwu",
-    "hmaeicjkpm",
-    "bmxhtfqeph",
-    "axehwgnpcw",
-    "vavqwzhvbw",
-    "luvdbodgno",
-    "bzpawyoekp",
-    "lcokdmhscn",
-    "vfloujsdsl",
-    "glkphcpcev",
-    "awznihkqrt",
-    "bahwpxriyl",
-    "rpzurgmjrm",
-    "auxtsbsqzo",
-    "adbsmazfqk",
-    "hkdeoimqyl",
-    "joyrsatvoo",
-    "znbsfdrkzh",
-    "uxtmuxcsdm",
-    "ypporrsyhx",
-    "ddyhhjbitx",
-    "glzxciezsf",
-    "cbevvojzlr",
-    "axvmktlhjy",
-    "srbcgiozhh",
-    "fablsjwcfj",
-    "imyboezsof",
-    "mepkghdipl",
-    "skcpltogsd",
-};
-
-char *toupper_string(char *str)
+char* toUpperString(const char *str)
 {
     int len = strlen(str);
     char *upper = (char*)calloc(len + 1, sizeof(char));
     
     for(int i = 0; i < len; i++)
-    {
         upper[i] = toupper(str[i]);
-    }
     
     return upper;
 }
 
-int main(int argc, char **argv)
+void referenceTypeTest()
 {
-    printf("Testing string map\n");
-    printf("---------------------\n");
-    printf("---------------------\n");
+    float start, end;
+
+    printf("--- Start generating %d tests strings ---\n", count);
+    start = getTime();
+    char *strings[100000];
+    for(int i = 0; i < count; i++)
+        strings[i] = generateString();
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End generating %d tests strings ---\n", count);
+
+    printf("\n\n");
 
     SSMap map;
     SSMapInit(&map);
 
-    for(int i = 0; i < 100; i++)
+    printf("--- Start test 1: add %d strings ---\n", count);
+    start = getTime();
+    for(int i = 0; i < count; i++)
     {
-        SSMapSet(&map, strings[i], toupper_string(strings[i]));
+        char *key = strings[i];
+        char *upper = toUpperString(key);
+        SSMapSet(&map, key, upper);
+        char *value = SSMapGet(&map, key);
+        assert(!strcmp(value, upper));
     }
-    
-    for(int i = 40; i <= 80; i++)
+    end = getTime();
+    printf("Map count and capacity: (%d, %d)\n", map.count, map.capacity);
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 1: add %d strings ---\n", count);
+
+    printf("\n");
+
+    printf("--- Start test 2: contains %d objects ---\n", count/2);
+    start = getTime();
+    for(int i = 0; i < count/2; i++)
     {
-        printf("Map value for '%s' is '%s'\n", strings[i], SSMapGet(&map, strings[i]));
+        int index = rand() % count;
+        assert(SSMapContains(&map, strings[index]));
     }
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 2: contains %d objects ---\n", count/2);
 
-    SSMapSet(&map, strings[56], "hello world!");
-    printf("Map value for '%s' is '%s'\n", strings[56], SSMapGet(&map, strings[56]));
+    printf("\n");
 
-    printf("Contains 56 = %d\n", SSMapContains(&map, strings[56]));
-    SSMapRemove(&map, strings[56]);
-    printf("Contains 56 = %d\n", SSMapContains(&map, strings[56]));
-
-    printf("Map value for '%s' is '%s'\n", strings[56], SSMapGet(&map, strings[56]));
-
-    printf("Testing int map\n");
-    printf("---------------------\n");
-    printf("---------------------\n");
-
-    IntMap map2;
-    IntMapInit(&map2);
-    
-    for(int i = 0; i < 100; i++)
-    {   
-        IntMapSet(&map2, i, i * i);
-    }
-    
-    for(int i = 20; i <= 40; i++)
+    printf("--- Start test 3: set existing %d objects ---\n", count/2);
+    start = getTime();
+    for(int i = 0; i < count/2; i++)
     {
-        printf("Map value for '%d' is '%d'\n", i, IntMapGet(&map2, i));        
+        int index = rand() % count;
+        SSMapSet(&map, strings[index], strings[index]);
+        char *value = SSMapGet(&map, strings[index]);
+        assert(!strcmp(strings[index], value));
     }
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 3: set existing %d objects ---\n", count/2);
+}
 
-    printf("Map value for '%d' is '%d'\n", 101, IntMapGet(&map2, 101));        
-    
+int main(int argc, char **argv)
+{
+    /* initialize random seed: */
+    srand(time(NULL));
+
+    valueTypeTest();
+
+    printf("\n\n");
+
+    referenceTypeTest();
+
     return 0;
 }

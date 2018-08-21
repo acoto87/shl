@@ -15,23 +15,23 @@
         itemType *items; \
     } typeName; \
     \
-    extern void typeName ## Init(typeName *list); \
-    extern void typeName ## Free(typeName *list); \
-    extern void typeName ## Add(typeName *list, itemType value); \
-    extern void typeName ## Insert(typeName *list, int32_t index, itemType value); \
-    extern int32_t typeName ## IndexOf(typeName *list, itemType value); \
-    extern itemType typeName ## Get(typeName *list, int32_t index); \
-    extern bool typeName ## Contains(typeName *list, itemType value); \
-    extern void typeName ## Clear(typeName *list); \
-    extern bool typeName ## RemoveAt(typeName *list, int32_t index); \
-    extern bool typeName ## Remove(typeName *list, itemType value);
+    void typeName ## Init(typeName *list); \
+    void typeName ## Free(typeName *list); \
+    void typeName ## Add(typeName *list, itemType value); \
+    void typeName ## Insert(typeName *list, int32_t index, itemType value); \
+    int32_t typeName ## IndexOf(typeName *list, itemType value); \
+    itemType typeName ## Get(typeName *list, int32_t index); \
+    bool typeName ## Contains(typeName *list, itemType value); \
+    void typeName ## Clear(typeName *list); \
+    itemType typeName ## RemoveAt(typeName *list, int32_t index); \
+    itemType typeName ## Remove(typeName *list, itemType value);
 
 #define shlDefineList(typeName, itemType, equalsFn, defaultValue) \
-    void typeName ## __Resize(typeName *list) \
+    void typeName ## __resize(typeName *list) \
     { \
         uint32_t oldCapacity = list->capacity; \
         uint32_t oldLoadFactor = list->loadFactor; \
-        itemType* old = list->items; \
+        itemType *old = list->items; \
         \
         list->loadFactor = oldLoadFactor << 1; \
         list->capacity = oldCapacity << 1; \
@@ -69,7 +69,7 @@
             return; \
         \
         if (list->count == list->loadFactor) \
-            typeName ## __Resize(list); \
+            typeName ## __resize(list); \
         \
         memmove(list->items + index + 1, list->items + index, (list->count - index) * sizeof(itemType)); \
         \
@@ -82,7 +82,7 @@
         if (!list->items) \
             return -1; \
         \
-        for(int i = 0; i < list->count; i++) \
+        for(int32_t i = 0; i < list->count; i++) \
         { \
             if (equalsFn(list->items[i], value)) \
                 return i; \
@@ -107,24 +107,28 @@
         return list->items[index]; \
     } \
     \
-    bool typeName ## RemoveAt(typeName *list, int32_t index) \
+    itemType typeName ## RemoveAt(typeName *list, int32_t index) \
     { \
         if (!list->items) \
-            return false; \
+            return defaultValue; \
         \
         if (index < 0 && index >= list->count) \
-            return false; \
+            return defaultValue; \
         \
+        itemType value = list->items[index]; \
         memmove(list->items + index, list->items + index + 1, (list->count - index - 1) * sizeof(itemType)); \
         \
         list->count--; \
-        return true; \
+        return value; \
     } \
     \
-    bool typeName ## Remove(typeName *list, itemType value) \
+    itemType typeName ## Remove(typeName *list, itemType value) \
     { \
         int32_t index = typeName ## IndexOf(list, value); \
-        return index >= 0 && typeName ## RemoveAt(list, index); \
+        if (index < 0) \
+            return defaultValue; \
+        \
+        return typeName ## RemoveAt(list, index); \
     } \
     \
     void typeName ## Clear(typeName *list) \
