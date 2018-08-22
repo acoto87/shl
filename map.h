@@ -38,10 +38,9 @@
     \
     void typeName ## Init(typeName* map); \
     void typeName ## Free(typeName* map); \
-    void typeName ## Set(typeName* map, keyType key, valueType value); \
+    valueType typeName ## Set(typeName* map, keyType key, valueType value); \
     valueType typeName ## Get(typeName* map, keyType key); \
-    bool typeName ## Remove(typeName* map, keyType key); \
-    void typeName ## Clear(typeName* map);
+    valueType typeName ## Remove(typeName* map, keyType key);
 
 #define shlDefineMap(typeName, keyType, valueType, hashFn, equalsFn, defaultValue) \
     static uint32_t typeName ## __fibHash(uint32_t hash, uint32_t shift) \
@@ -61,7 +60,7 @@
         return -1; \
     } \
     \
-    static bool typeName ## __insert(typeName* map, keyType key, valueType value) \
+    static valueType typeName ## __insert(typeName* map, keyType key, valueType value) \
     { \
         uint32_t hash, index, next; \
         hash = index = typeName ## __fibHash(hashFn(key), map->shift); \
@@ -70,8 +69,9 @@
         { \
             if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
+                valueType currentValue = map->entries[index].value; \
                 map->entries[index].value = value; \
-                return true; \
+                return currentValue; \
             } \
             \
             index = map->entries[index].next; \
@@ -81,8 +81,9 @@
         { \
             if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
+                valueType currentValue = map->entries[index].value; \
                 map->entries[index].value = value; \
-                return true; \
+                return currentValue; \
             } \
         } \
         \
@@ -96,7 +97,7 @@
         map->entries[next].hash = hash; \
         map->entries[next].next = -1; \
         map->count++; \
-        return true; \
+        return value; \
     } \
     \
     static void typeName ## __resize(typeName* map) \
@@ -133,15 +134,15 @@
         map->count = 0; \
     } \
     \
-    void typeName ## Set(typeName* map, keyType key, valueType value) \
+    valueType typeName ## Set(typeName* map, keyType key, valueType value) \
     { \
         if (!map->entries) \
-            return; \
+            return defaultValue; \
         \
         if(map->count == map->loadFactor) \
             typeName ## __resize(map); \
         \
-        typeName ## __insert(map, key, value); \
+        return typeName ## __insert(map, key, value); \
     } \
     \
     valueType typeName ## Get(typeName* map, keyType key) \
@@ -202,7 +203,7 @@
         return found; \
     } \
     \
-    bool typeName ## Remove(typeName* map, keyType key) \
+    valueType typeName ## Remove(typeName* map, keyType key) \
     { \
         if (!map->entries) \
             return false; \
@@ -211,36 +212,29 @@
         \
         hash = prevIndex = index = typeName ## __fibHash(hashFn(key), map->shift); \
         \
+        valueType value = defaultValue; \
+        \
         while (map->entries[index].active) \
         { \
             if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
             { \
+                value = map->entries[index].value; \
                 map->entries[prevIndex].next = map->entries[index].next; \
+                map->entries[index].value = defaultValue; \
                 map->entries[index].active = false; \
                 break; \
             } \
             \
             if (map->entries[index].next < 0) \
             { \
-                return false; \
+                break; \
             } \
             \
             prevIndex = index; \
             index = map->entries[index].next; \
         } \
         map->count--; \
-        return true; \
-    } \
-    \
-    void typeName ## Clear(typeName* map) \
-    { \
-        if (!map->entries) \
-            return; \
-        \
-        for(int32_t i = 0; i < map->capacity; i++) \
-            map->entries[i].active = false; \
-        \
-        map->count = 0; \
+        return value; \
     }
 
 #endif //SHL_MAP_H

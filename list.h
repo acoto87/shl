@@ -21,8 +21,8 @@
     void typeName ## Insert(typeName *list, int32_t index, itemType value); \
     int32_t typeName ## IndexOf(typeName *list, itemType value); \
     itemType typeName ## Get(typeName *list, int32_t index); \
+    itemType typeName ## Set(typeName *list, int32_t index, itemType value); \
     bool typeName ## Contains(typeName *list, itemType value); \
-    void typeName ## Clear(typeName *list); \
     itemType typeName ## RemoveAt(typeName *list, int32_t index); \
     itemType typeName ## Remove(typeName *list, itemType value);
 
@@ -107,6 +107,19 @@
         return list->items[index]; \
     } \
     \
+    itemType typeName ## Set(typeName *list, int32_t index, itemType value) \
+    { \
+        if (!list->items) \
+            return defaultValue; \
+        \
+        if (index < 0 && index >= list->count) \
+            return defaultValue; \
+        \
+        itemType currentValue = list->items[index]; \
+        list->items[index] = value; \
+        return currentValue; \
+    } \
+    \
     itemType typeName ## RemoveAt(typeName *list, int32_t index) \
     { \
         if (!list->items) \
@@ -117,7 +130,6 @@
         \
         itemType value = list->items[index]; \
         memmove(list->items + index, list->items + index + 1, (list->count - index - 1) * sizeof(itemType)); \
-        \
         list->count--; \
         return value; \
     } \
@@ -129,14 +141,6 @@
             return defaultValue; \
         \
         return typeName ## RemoveAt(list, index); \
-    } \
-    \
-    void typeName ## Clear(typeName *list) \
-    { \
-        if (!list->items) \
-            return; \
-        \
-        list->count = 0; \
     }
 
 #endif // SHL_LIST_H

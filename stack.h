@@ -15,13 +15,12 @@
         itemType *items; \
     } typeName; \
     \
-    void typeName ## Init(typeName *list); \
-    void typeName ## Free(typeName *list); \
-    void typeName ## Push(typeName *list, itemType value); \
-    bool typeName ## Contains(typeName *list, itemType value); \
-    void typeName ## Clear(typeName *list); \
-    itemType typeName ## Peek(typeName *list); \
-    itemType typeName ## Pop(typeName *list); \
+    void typeName ## Init(typeName *stack); \
+    void typeName ## Free(typeName *stack); \
+    void typeName ## Push(typeName *stack, itemType value); \
+    bool typeName ## Contains(typeName *stack, itemType value); \
+    itemType typeName ## Peek(typeName *stack); \
+    itemType typeName ## Pop(typeName *stack);
 
 #define shlDefineStack(typeName, itemType, equalsFn, defaultValue) \
     void typeName ## __resize(typeName *stack) \
@@ -94,14 +93,6 @@
         } \
         \
         return false; \
-    } \
-    \
-    void typeName ## Clear(typeName *stack) \
-    { \
-        if (!stack->items) \
-            return; \
-        \
-        stack->count = 0; \
     }
 
 #endif // SHL_STACK_H

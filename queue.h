@@ -10,6 +10,7 @@
     typedef struct \
     { \
         uint32_t head; \
+        uint32_t tail; \
         uint32_t count; \
         uint32_t capacity; \
         uint32_t loadFactor; \
@@ -21,8 +22,7 @@
     void typeName ## Push(typeName *queue, itemType value); \
     itemType typeName ## Peek(typeName *queue); \
     itemType typeName ## Pop(typeName *queue); \
-    bool typeName ## Contains(typeName *queue, itemType value); \
-    void typeName ## Clear(typeName *queue); \
+    bool typeName ## Contains(typeName *queue, itemType value);
     
 #define shlDefineQueue(typeName, itemType, equalsFn, defaultValue) \
     void typeName ## __resize(typeName *queue) \
@@ -35,7 +35,7 @@
         queue->capacity = oldCapacity << 1; \
         queue->items = (itemType *)calloc(queue->capacity, sizeof(itemType)); \
         \
-        if (queue->head + queue->count > oldCapacity) \
+        if (queue->head > queue->tail) \
         { \
             memcpy(queue->items, old + queue->head, (oldCapacity - queue->head) * sizeof(itemType)); \
             memcpy(queue->items + oldCapacity - queue->head, old, ((queue->head + queue->count) % oldCapacity) * sizeof(itemType)); \
@@ -46,6 +46,7 @@
         } \
         \
         queue->head = 0; \
+        queue->tail = queue->count; \
     } \
     \
     void typeName ## Init(typeName *queue) \
@@ -54,6 +55,7 @@
         queue->loadFactor = 8; \
         queue->count = 0; \
         queue->head = 0; \
+        queue->tail = 0; \
         queue->items = (itemType *)calloc(queue->capacity, sizeof(itemType)); \
     } \
     \
@@ -72,7 +74,8 @@
         if (queue->count == queue->loadFactor) \
             typeName ## __resize(queue); \
         \
-        queue->items[(queue->head + queue->count) % queue->capacity] = value; \
+        queue->items[queue->tail] = value; \
+        queue->tail = (queue->tail + 1) % queue->capacity; \
         queue->count++; \
     } \
     \
@@ -90,6 +93,7 @@
             return defaultValue; \
         \
         itemType value = queue->items[queue->head]; \
+        queue->items[queue->head] = defaultValue; \
         queue->head++; \
         queue->count--; \
         return value; \
@@ -107,15 +111,6 @@
         } \
         \
         return false; \
-    } \
-    \
-    void typeName ## Clear(typeName *queue) \
-    { \
-        if (!queue->items) \
-            return; \
-        \
-        queue->head = 0; \
-        queue->count = 0; \
     }
 
 #endif // SHL_STACK_H
