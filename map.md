@@ -54,7 +54,11 @@ This list allows the following operations:
 | _valueType_ _typeName_ Get(_typeName_* map, _keyType_ key) | Gets the value asociated with the key `key`, or _defaultValue_ if there are no value asociated with the key. | _itemType_ |
 | _valueType__ _typeName_ Remove(_typeName_* map, _keyType_ key) | Remove the key `key` from the map. Returns the value asociated to the key if there were one. | _valueType_ |
 
+Example:
 ```c
+#include <stdio.h>
+#include <string.h>
+
 #include "map.h"
 
 uint32_t fnv32(const char* data) 

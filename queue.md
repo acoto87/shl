@@ -45,6 +45,8 @@ This list allows the following operations:
 
 Example:
 ```c
+#include <stdio.h>
+
 #include "queue.h"
 
 bool intEquals(const int x, const int y)

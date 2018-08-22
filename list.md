@@ -49,6 +49,8 @@ This list allows the following operations:
 
 Example:
 ```c
+#include <stdio.h>
+
 #include "list.h"
 
 bool intEquals(const int x, const int y)
