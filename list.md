@@ -44,7 +44,6 @@ This list allows the following operations:
 | _itemType_ _typeName_ Get(_typeName_ *list, int32_t index) | Gets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can use directly `list->items[index]`. | _typeName_ |
 | _itemType_ _typeName_ Set(_typeName_ *list, int32_t index, _itemType_ value) | Sets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can assign directly `list->items[index] = value`. This function returns the element previously in the `index` position. | _typeName_ |
 | bool _typeName_ Contains(_typeName_ *list, _itemType_ value) | Return `true` if an object is contained in the list. | bool |
-| void _typeName_ Clear(_typeName_ *list) | Clear the list. This doesn't free the list, it merely reset the count to zero. | void |
 | _itemType_ _typeName_ RemoveAt(_typeName_ *list, int32_t index) | Remove the element at the position `index`. This function shift all the remaining elements on index to the left. This function returns the element removed. | _itemType_ |
 | _itemType_ _typeName_ Remove(_typeName_ *list, _itemType_ value) | Remove the first occurrence of an element in the list. This function shift all the remaining elements on index to the left. This function returns the element removed. | _itemType_ |
 

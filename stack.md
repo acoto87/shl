@@ -39,10 +39,10 @@ This list allows the following operations:
 | void _typeName_ Init(_typeName_ *stack) | Initializes the data needed for the stack. | void |
 | void _typeName_ Free(_typeName_ *stack) | Frees the data used by the stack. It doesn't free the stack itself. | void |
 | void _typeName_ Push(_typeName_ *stack, _itemType_ value) | Push an element in the top of the stack. | void |
-| bool _typeName_ Contains(_typeName_ *stack, _itemType_ value) | Return `true` if an object is contained in the stack. | bool | 
-| void _typeName_ Clear(_typeName_ *stack) | Clear the list. This doesn't free the list, it merely reset the count to zero. | void |
 | _itemType_ _typeName_ Peek(_typeName_ *stack) | Gets the top of the stack without removing it. | _itemType_ |
 | _itemType_ _typeName_ Pop(_typeName_ *stack) | Remove the top of the stack. | _itemType _ | 
+| bool _typeName_ Contains(_typeName_ *stack, _itemType_ value) | Return `true` if an object is contained in the stack. | bool | 
+
 
 Example:
 ```c

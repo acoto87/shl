@@ -42,7 +42,6 @@ This list allows the following operations:
 | _itemType_ _typeName_ Peek(_typeName_ *queue) | Gets the top of the queue without removing it. | _itemType_ |
 | _itemType_ _typeName_ Pop(_typeName_ *queue) | Remove the top of the queue. | _itemType _ | 
 | bool _typeName_ Contains(_typeName_ *queue, _itemType_ value) | Return `true` if an object is contained in the queue. | bool | 
-| void _typeName_ Clear(_typeName_ *queue) | Clear the list. This doesn't free the list, it merely reset the count to zero. | void |
 
 Example:
 ```c
