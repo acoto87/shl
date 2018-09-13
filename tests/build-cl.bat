@@ -22,6 +22,7 @@ SET CommonLinkerFlags= -incremental:no -opt:ref -libpath:%GLEWLibPath% -libpath:
 IF NOT EXIST build mkdir build
 pushd build
 
+cl %CommonCompilerFlags% ../tests/array_test.c /link -out:array_test.exe -pdb:array_test.pdb %CommonLinkerFlags%
 cl %CommonCompilerFlags% ../tests/wave_writer_test.c /link -out:wave_writer_test.exe -pdb:wave_writer_test.pdb %CommonLinkerFlags%
 cl %CommonCompilerFlags% ../tests/list_test.c /link %CommonLinkerFlags% -out:list_test.exe -pdb:list_test.pdb
 cl %CommonCompilerFlags% ../tests/stack_test.c /link %CommonLinkerFlags% -out:stack_test.exe -pdb:stack_test.pdb
