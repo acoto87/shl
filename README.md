@@ -1,6 +1,6 @@
 # Single Header Libraries
 
-These are single header libraries that I use in my code, much in the style of [Sean Barret libraries](https://github.com/nothings/stb).
+These are single header libraries that I use in my code, much in the style of Sean Barret stb libraries.
 
 * list.h: A generic list implementation (see [list.md](https://github.com/acoto87/shl/blob/master/list.md)).
 * stack.h: A generic stack implementation (see [stack.md](https://github.com/acoto87/shl/blob/master/stack.md)).
