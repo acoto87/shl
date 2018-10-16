@@ -28,5 +28,6 @@ cl %CommonCompilerFlags% ../tests/list_test.c /link %CommonLinkerFlags% -out:lis
 cl %CommonCompilerFlags% ../tests/stack_test.c /link %CommonLinkerFlags% -out:stack_test.exe -pdb:stack_test.pdb
 cl %CommonCompilerFlags% ../tests/queue_test.c /link %CommonLinkerFlags% -out:queue_test.exe -pdb:queue_test.pdb
 cl %CommonCompilerFlags% ../tests/map_test.c /link %CommonLinkerFlags% -out:map_test.exe -pdb:map_test.pdb
+cl %CommonCompilerFlags% ../tests/binary_heap_test.c /link %CommonLinkerFlags% -out:binary_heap_test.exe -pdb:binary_heap_test.pdb
 cl %CommonCompilerFlags% ../tests/canvas2d_test.c /link %CommonLinkerFlags% user32.lib gdi32.lib opengl32.lib glew32.lib glfw3dll.lib -out:canvas2d_test.exe -pdb:canvas2d_test.pdb
 popd

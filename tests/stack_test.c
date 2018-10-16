@@ -20,14 +20,18 @@ bool intEquals(const int x, const int y)
 }
 
 shlDeclareStack(IntStack, int)
-shlDefineStack(IntStack, int, intEquals, 0)
+shlDefineStack(IntStack, int)
 
 void valueTypeTest()
 {
     float start, end;
 
+    IntStackOptions options = {0};
+    options.defaultValue = 0;
+    options.equalsFn = intEquals;
+
     IntStack stack;
-    IntStackInit(&stack);
+    IntStackInit(&stack, options);
 
     printf("--- Start value type tests ---\n");
 
@@ -87,15 +91,25 @@ bool EntryEquals(const Entry *e1, const Entry *e2)
            strcmp(e1->name, e2->name) == 0;
 }
 
+void EntryFree(Entry* e)
+{
+    free(e);
+}
+
 shlDeclareStack(EntriesStack, Entry*)
-shlDefineStack(EntriesStack, Entry*, EntryEquals, NULL)
+shlDefineStack(EntriesStack, Entry*)
 
 void referenceTypeTest()
 {
     float start, end;
 
+    EntriesStackOptions options = {0};
+    options.defaultValue = NULL;
+    options.equalsFn = EntryEquals;
+    options.freeFn = EntryFree;
+
     EntriesStack stack;
-    EntriesStackInit(&stack);
+    EntriesStackInit(&stack, options);
 
     printf("--- Start reference type tests ---\n");
 

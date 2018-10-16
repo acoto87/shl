@@ -34,19 +34,20 @@ The list structure allows the following operations (all functions all prefixed w
 
 | Function | Description | Return type |
 | --- | --- | --- |
-| `Init`(_typeName_ *list, _typeName_ Options options) | Initializes the data needed for the list. | void |
-| `Free`(_typeName_ *list) | Frees the data used by the list. It doesn't free the list itself. | void |
-| `Add`(_typeName_ *list, _itemType_ value) | Add an element at the end of the list. | void |
-| `AddRange`(_typeName_ *list, int32_t count, itemType values[]) | Add a collection of elements at the end of the list. | void |
-| `Insert`(_typeName_ *list, int32_t index, itemType value) | Insert an element at the `index` position in the list. | void |
-| `InsertRange`(_typeName_ *list, int32_t index, int32_t count, itemType values[]) | Insert a collection of elements at the `index` position in the list. | void |
-| `IndexOf`(_typeName_ *list, _itemType_ value) | Gets the index of the first occurrence in the list of an element. | int32_t |
-| `Get`(_typeName_ *list, int32_t index) | Gets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can use directly `list->items[index]`. | _typeName_ |
-| `Set`(_typeName_ *list, int32_t index, _itemType_ value) | Sets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can assign directly `list->items[index] = value`. This function returns the element previously in the `index` position. | _typeName_ |
-| `Contains`(_typeName_ *list, _itemType_ value) | Return `true` if an object is contained in the list. | bool |
-| `Remove`(_typeName_ *list, _itemType_ value) | Remove the first occurrence of an element in the list. This function shift all the remaining elements on index to the left. This function returns the element removed. | void |
-| `RemoveAt`(_typeName_ *list, int32_t index) | Remove the element at the position `index`. This function shift all the remaining elements on index to the left. This function returns the element removed. | void |
-| `RemoveAtRange`(_typeName_ *list, int32_t index, int32_t count) | Remove `count` elements from the position `index`. This function shift all the remaining elements on index to the left. | void |
+| `Init`(_typeName_* list, _typeName_ Options options) | Initializes the data needed for the list. | void |
+| `Free`(_typeName_* list) | Frees the data used by the list. It doesn't free the list itself. | void |
+| `Add`(_typeName_* list, _itemType_ value) | Add an element at the end of the list. | void |
+| `AddRange`(_typeName_* list, int32_t count, itemType values[]) | Add a collection of elements at the end of the list. | void |
+| `Insert`(_typeName_* list, int32_t index, itemType value) | Insert an element at the `index` position in the list. | void |
+| `InsertRange`(_typeName_* list, int32_t index, int32_t count, itemType values[]) | Insert a collection of elements at the `index` position in the list. | void |
+| `IndexOf`(_typeName_* list, _itemType_ value) | Gets the index of the first occurrence in the list of an element. | int32_t |
+| `Get`(_typeName_* list, int32_t index) | Gets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can use directly `list->items[index]`. | _typeName_ |
+| `Set`(_typeName_* list, int32_t index, _itemType_ value) | Sets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can assign directly `list->items[index] = value`. This function returns the element previously in the `index` position. | _typeName_ |
+| `Contains`(_typeName_* list, _itemType_ value) | Return `true` if an object is contained in the list. | bool |
+| `Remove`(_typeName_* list, _itemType_ value) | Remove the first occurrence of an element in the list. This function shift all the remaining elements on index to the left. This function returns the element removed. | void |
+| `RemoveAt`(_typeName_* list, int32_t index) | Remove the element at the position `index`. This function shift all the remaining elements on index to the left. This function returns the element removed. | void |
+| `RemoveAtRange`(_typeName_* list, int32_t index, int32_t count) | Remove `count` elements from the position `index`. This function shift all the remaining elements on index to the left. | void |
+| `Clear`(_typeName_* list) | Clear the list, freeing every element if a `freeFn` was provided. Doesn't free the list itself. | void |
 | `Reverse`(typeName* list) | Reverse the list. | void |
 | `Sort`(typeName* list, int32_t (*compareFn)(const itemType item1, const itemType item2)) | Sort the list using the comparing function `compareFn`. This function must receive two elements `item1` and `item2` from the list and must return a value `< 0` if `item1 < item2`, a value `> 0` if `item1 > item2` and a value `= 0` if `item1 == item2` | void |
 
@@ -56,8 +57,8 @@ Each definition of a list declare a struct _typeName_ Options that is used to in
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `equalsFn` | bool (*)(const _itemType_, const _itemType_) | _(optional)_ A pointer to a function that takes two elements, and returns `true` if the elementos are equals, and returns `false` otherwise. If no `equalsFn` is provided then the operations `IndexOf` always return `-1`, `Contains` always return `false` and `Remove` doesn't do anything. |
-| `freeFn` | void (*)(_itemType_) | _(optional)_ A pointer to a function that takes an element and free it. If no `freeFn` is provided, then the operations `Remove`, `RemoveAt`, `RemoveAtRange` and `Free` doesn't free the elements and the user of the list is the responsible for free the elements. |
+| `equalsFn` | bool (*)(const _itemType_, const _itemType_) | _(optional)_ A pointer to a function that takes two elements, and returns `true` if the elements are equals, and returns `false` otherwise. If no `equalsFn` is provided then the operations `IndexOf` always return `-1`, `Contains` always return `false` and `Remove` doesn't do anything. |
+| `freeFn` | void (*)(_itemType_) | _(optional)_ A pointer to a function that takes an element and free it. If no `freeFn` is provided, then the operations `Remove`, `RemoveAt`, `RemoveAtRange`, `Clear` and `Free` doesn't free the elements and the user of the list is the responsible for free the elements. |
 | `defaultValue` | _itemType_ | The value to return when you try to access an element that doesn't exist. |
 
 Example:
@@ -76,8 +77,12 @@ shlDefineList(IntList, int, intEquals, 0)
 
 int main()
 {
+    IntListOptions options = (IntListOptions){0};
+    options.defaultValue = 0;
+    options.equalsFn = intEquals;
+
     IntList list;
-    IntListInit(&list);
+    IntListInit(&list, options);
 
     for (int i = 0; i < 100; i++)
         IntListAdd(&list, i);

@@ -17,8 +17,6 @@ Use the macro `shlDefineStack` to generate the function implementations.
 | --- | --- |
 | typeName | The name of the generated type. This will also prefix all of the function names. |
 | itemType | The type of the list elements. |
-| equalsFn | A function that takes two elements, and returns `true` if the elementos are equals, `false` otherwise. |
-| defaultValue | The value to return when you try to access an element that doesn't exist. |
 
 ```c
 #include "stack.h"
@@ -36,13 +34,23 @@ This list allows the following operations:
 
 | Function | Description | Return type |
 | --- | --- | --- |
-| void _typeName_ Init(_typeName_ *stack) | Initializes the data needed for the stack. | void |
-| void _typeName_ Free(_typeName_ *stack) | Frees the data used by the stack. It doesn't free the stack itself. | void |
-| void _typeName_ Push(_typeName_ *stack, _itemType_ value) | Push an element in the top of the stack. | void |
-| _itemType_ _typeName_ Peek(_typeName_ *stack) | Gets the top of the stack without removing it. | _itemType_ |
-| _itemType_ _typeName_ Pop(_typeName_ *stack) | Remove the top of the stack. | _itemType _ | 
-| bool _typeName_ Contains(_typeName_ *stack, _itemType_ value) | Return `true` if an object is contained in the stack. | bool | 
+| `Init`(_typeName_ *stack, _typeName_ Options options) | Initializes the data needed for the stack. | void |
+| `Free`(_typeName_ *stack) | Frees the data used by the stack. It doesn't free the stack itself. | void |
+| `Push`(_typeName_ *stack, _itemType_ value) | Push an element in the top of the stack. | void |
+| `Peek`(_typeName_ *stack) | Gets the top of the stack without removing it. | _itemType_ |
+| `Pop`(_typeName_ *stack) | Remove the top of the stack. | _itemType _ | 
+| `Contains`(_typeName_ *stack, _itemType_ value) | Return `true` if an object is contained in the stack. | bool | 
+| `Clear`(_typeName_* queue) | Clear the stack, freeing every element if a `freeFn` was provided. Doesn't free the stack itself. | void |
 
+## Options
+
+Each definition of a queue declare a struct _typeName_ Options that is used to initialize the stack. The struct has the following members:
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `equalsFn` | bool (*)(const _itemType_, const _itemType_) | _(optional)_ A pointer to a function that takes two elements, and returns `true` if the elements are equals, and returns `false` otherwise. If no `equalsFn` is provided then the operation `Contains` always return `false`. |
+| `freeFn` | void (*)(_itemType_) | _(optional)_ A pointer to a function that takes an element and free it. If no `freeFn` is provided, then the operation `Clear` and `Free` doesn't free the elements and the user of the stack is the responsible for free the elements. |
+| `defaultValue` | _itemType_ | The value to return when you apply the `Pop` operation and the stack is empty. |
 
 Example:
 ```c
@@ -60,8 +68,12 @@ shlDefineStack(IntStack, int, intEquals, 0)
 
 int main()
 {
+    IntStackOptions options = (IntStackOptions){0};
+    options.defaultValue = 0;
+    options.equalsFn = intEquals;
+
     IntStack stack;
-    IntStackInit(&stack);
+    IntStackInit(&stack, options);
 
     for (int i = 0; i < 100; i++)
         IntStackPush(&stack, i);

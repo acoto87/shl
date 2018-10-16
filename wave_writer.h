@@ -1,8 +1,7 @@
-//
-// WAVE sound file writer for recording 16-bit output during program development.
-// A single header library version in C89 of the Wave_Writer library written by Shay Green.
-
 /* 
+    WAVE sound file writer for recording 16-bit output during program development.
+    A single header library version in C89 of the Wave_Writer library written by Shay Green.
+
     Copyright (C) 2003-2005 by Shay Green. Permission is hereby granted, free
     of charge, to any person obtaining a copy of this software and associated
     documentation files (the "Software"), to deal in the Software without

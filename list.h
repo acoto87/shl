@@ -34,7 +34,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-
 #define shlDeclareList(typeName, itemType) \
     typedef struct \
     { \
@@ -66,6 +65,7 @@
     void typeName ## Remove(typeName* list, itemType value); \
     void typeName ## RemoveAt(typeName* list, int32_t index); \
     void typeName ## RemoveAtRange(typeName* list, int32_t index, int32_t count); \
+    void typeName ## Clear(typeName* list); \
     void typeName ## Reverse(typeName* list); \
     void typeName ## Sort(typeName* list, int32_t (*compareFn)(const itemType item1, const itemType item2));
 
@@ -110,17 +110,12 @@
         typeName ## __qsort(list, j + 1, right, compareFn); \
     } \
     \
-    typeName ## Options typeName ## DefaultOptions() \
-    { \
-        return (typeName ## Options){0}; \
-    } \
-    \
     void typeName ## Init(typeName* list, typeName ## Options options) \
     { \
-        list->capacity = 8; \
         list->defaultValue = options.defaultValue; \
         list->equalsFn = options.equalsFn; \
         list->freeFn = options.freeFn; \
+        list->capacity = 8; \
         list->count = 0; \
         list->items = (itemType *)malloc(list->capacity * sizeof(itemType)); \
     } \
@@ -130,15 +125,10 @@
         if (!list->items) \
             return; \
         \
-        if (list->freeFn) \
-        { \
-            for(int32_t i = 0; i < list->count; i++) \
-                list->freeFn(list->items[i]); \
-        } \
+        typeName ## Clear(list); \
         \
         free(list->items); \
         list->items = 0; \
-        list->count = 0; \
     } \
     \
     void typeName ## InsertRange(typeName* list, int32_t index, int32_t count, itemType values[]) \
@@ -250,6 +240,20 @@
     { \
         int32_t index = typeName ## IndexOf(list, value); \
         typeName ## RemoveAt(list, index); \
+    } \
+    \
+    void typeName ## Clear(typeName* list) \
+    { \
+        if (!list->items) \
+            return; \
+        \
+        if (list->freeFn) \
+        { \
+            for(int32_t i = 0; i < list->count; i++) \
+                list->freeFn(list->items[i]); \
+        } \
+        \
+        list->count = 0; \
     } \
     \
     void typeName ## Reverse(typeName *list) \

@@ -20,15 +20,19 @@ bool intEquals(const int x, const int y)
 }
 
 shlDeclareQueue(IntQueue, int)
-shlDefineQueue(IntQueue, int, intEquals, 0)
+shlDefineQueue(IntQueue, int)
 
 void valueTypeTest()
 {
     float start, end;
     int peek;
 
+    IntQueueOptions options = {0};
+    options.defaultValue = 0;
+    options.equalsFn = intEquals;
+
     IntQueue queue;
-    IntQueueInit(&queue);
+    IntQueueInit(&queue, options);
 
     printf("--- Start value type tests ---\n");
 
@@ -112,16 +116,26 @@ bool EntryEquals(const Entry *e1, const Entry *e2)
            strcmp(e1->name, e2->name) == 0;
 }
 
+void EntryFree(Entry* e)
+{
+    free(e);
+}
+
 shlDeclareQueue(EntriesQueue, Entry*)
-shlDefineQueue(EntriesQueue, Entry*, EntryEquals, NULL)
+shlDefineQueue(EntriesQueue, Entry*)
 
 void referenceTypeTest()
 {
     float start, end;
     Entry *peek;
 
+    EntriesQueueOptions options = {0};
+    options.defaultValue = NULL;
+    options.equalsFn = EntryEquals;
+    options.freeFn = EntryFree;
+
     EntriesQueue queue;
-    EntriesQueueInit(&queue);
+    EntriesQueueInit(&queue, options);
 
     printf("--- Start reference type tests ---\n");
 
@@ -165,6 +179,7 @@ void referenceTypeTest()
         peek = EntriesQueuePeek(&queue);
         Entry *entry = EntriesQueuePop(&queue);
         assert(peek->index == entry->index);
+        EntryFree(entry);
     }
     end = getTime();
     printf("Queue count and capacity: (%d, %d)\n", queue.count, queue.capacity);
@@ -191,6 +206,7 @@ void referenceTypeTest()
             Entry *entry = EntriesQueuePop(&queue);
             assert(peek->index == entry->index);
             peek = EntriesQueuePeek(&queue);
+            EntryFree(entry);
         }
     }
     end = getTime();

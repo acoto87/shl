@@ -31,7 +31,8 @@ void valueTypeTest()
 {
     float start, end;
 
-    IntListOptions options = IntListDefaultOptions();
+    IntListOptions options = {0};
+    options.defaultValue = 0;
     options.equalsFn = intEquals;
 
     IntList list;
@@ -189,7 +190,7 @@ void referenceTypeTest()
     float start, end;
     Entry** entries;
 
-    EntriesListOptions options = EntriesListDefaultOptions();
+    EntriesListOptions options = {0};
     options.defaultValue = NULL;
     options.equalsFn = EntryEquals;
     options.freeFn = EntryFree;
