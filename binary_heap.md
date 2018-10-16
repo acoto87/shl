@@ -38,7 +38,7 @@ The list structure allows the following operations (all functions all prefixed w
 | `Free`(_typeName_* heap) | Frees the data used by the binary heap. It doesn't free the binary heap itself. | void |
 | `Push`(_typeName_* heap, _itemType_ value) | Push an element to the heap. | void |
 | `Peek`(_typeName_* heap) | Gets the top of the heap without removing it. | _itemType_ |
-| `Pop`(_typeName_* heap) | Remove the top of the heap. | _itemType _ | 
+| `Pop`(_typeName_* heap) | Remove the top of the heap. | _itemType_ | 
 | `IndexOf`(_typeName_* heap, _itemType_ value) | Returns the index of an element on the heap | int32_t |
 | `Contains`(_typeName_* heap, _itemType_ value) | Return `true` if an object is contained in the heap. | bool |
 | `Update`(_typeName_* heap, int32_t index, _itemType_ newValue) | Update the value associated to the element at the `index` position. This may cause reordering the heap. | void |
