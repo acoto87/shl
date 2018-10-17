@@ -48,8 +48,10 @@ The list structure allows the following operations (all functions all prefixed w
 | `RemoveAt`(_typeName_* list, int32_t index) | Remove the element at the position `index`. This function shift all the remaining elements on index to the left. This function returns the element removed. | void |
 | `RemoveAtRange`(_typeName_* list, int32_t index, int32_t count) | Remove `count` elements from the position `index`. This function shift all the remaining elements on index to the left. | void |
 | `Clear`(_typeName_* list) | Clear the list, freeing every element if a `freeFn` was provided. Doesn't free the list itself. | void |
-| `Reverse`(typeName* list) | Reverse the list. | void |
-| `Sort`(typeName* list, int32_t (*compareFn)(const itemType item1, const itemType item2)) | Sort the list using the comparing function `compareFn`. This function must receive two elements `item1` and `item2` from the list and must return a value `< 0` if `item1 < item2`, a value `> 0` if `item1 > item2` and a value `= 0` if `item1 == item2` | void |
+| `Reverse`(_typeName_* list) | Reverse the list. | void |
+| `Sort`(_typeName_* list, int32_t (*compareFn)(const _itemType_ item1, const _itemType_ item2)) | Sort the list using the comparing function `compareFn`. This function must receive two elements `item1` and `item2` from the list and must return a value `< 0` if `item1 < item2`, a value `> 0` if `item1 > item2` and a value `= 0` if `item1 == item2` | void |
+| `CopyTo`(_typeName_* list, _itemType_ array[], int32_t index) | Copy the elements of the list to `array` from the `index` position. The caller should make sure that array is big enough to fit the entire list. | void |
+| `ToArray`(_typeName_* list) | Returns an array with all the elements of the list. | _itemType_* |
 
 ## Options
 

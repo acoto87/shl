@@ -67,7 +67,9 @@
     void typeName ## RemoveAtRange(typeName* list, int32_t index, int32_t count); \
     void typeName ## Clear(typeName* list); \
     void typeName ## Reverse(typeName* list); \
-    void typeName ## Sort(typeName* list, int32_t (*compareFn)(const itemType item1, const itemType item2));
+    void typeName ## Sort(typeName* list, int32_t (*compareFn)(const itemType item1, const itemType item2)); \
+    void typeName ## CopyTo(typeName* list, itemType array[], int32_t index); \
+    itemType* typeName ## ToArray(typeName* list); \
 
 #define shlDefineList(typeName, itemType) \
     void typeName ## __resize(typeName* list, int32_t minSize) \
@@ -272,6 +274,25 @@
     void typeName ## Sort(typeName* list, int32_t (*compareFn)(const itemType item1, const itemType item2)) \
     { \
         typeName ## __qsort(list, 0, list->count - 1, compareFn); \
+    } \
+    \
+    void typeName ## CopyTo(typeName* list, itemType array[], int32_t index) \
+    { \
+        if (!list->items) \
+            return; \
+        \
+        if (index >= 0) \
+            memcpy(array + index, list->items, list->count * sizeof(itemType)); \
+    } \
+    \
+    itemType* typeName ## ToArray(typeName* list) \
+    { \
+        if (!list->items) \
+            return 0; \
+        \
+        itemType* array = (itemType*)malloc(list->count * sizeof(itemType)); \
+        memcpy(array, list->items, list->count * sizeof(itemType)); \
+        return array; \
     }
 
 #endif // SHL_LIST_H
