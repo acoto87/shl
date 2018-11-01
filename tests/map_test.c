@@ -14,25 +14,30 @@ static float getTime()
 }
 
 // value type tests
-int intHash(const int x)
+int hashInt(const int x)
 {
     return x;
 }
 
-int equalsInt(const int a, const int b)
+bool equalsInt(const int a, const int b)
 {
     return a == b;
 }
 
 shlDeclareMap(IntMap, int, int)
-shlDefineMap(IntMap, int, int, intHash, equalsInt, 0)
+shlDefineMap(IntMap, int, int)
 
 void valueTypeTest()
 {
     float start, end;
 
+    IntMapOptions options = (IntMapOptions){0};
+    options.hashFn = hashInt;
+    options.equalsFn = equalsInt;
+    options.defaultValue = 0;
+
     IntMap map;
-    IntMapInit(&map);
+    IntMapInit(&map, options);
 
     printf("--- Start test 1: add %d objects ---\n", count);
     start = getTime();
@@ -75,6 +80,20 @@ void valueTypeTest()
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 3: set existing %d objects ---\n", count/2);
+
+    printf("\n");
+
+    printf("--- Start test 4: remove %d objects ---\n", count/2);
+    start = getTime();
+    for(int i = 0; i < count/2; i++)
+    {
+        int key = rand() % map.count;
+        IntMapRemove(&map, key);
+        assert(!IntMapContains(&map, key));
+    }
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 4: remove %d objects ---\n", count/2);
 }
 
 // reference type tests
@@ -90,13 +109,13 @@ uint32_t fnv32(const char* data)
     return hash;
 }
 
-int equalsStr(const char *s1, const char *s2)
+bool equalsStr(const char *s1, const char *s2)
 {
     return strcmp(s1, s2) == 0;
 }
 
 shlDeclareMap(SSMap, char*, char*)
-shlDefineMap(SSMap, char*, char*, fnv32, equalsStr, NULL)
+shlDefineMap(SSMap, char*, char*)
 
 char* generateString()
 {
@@ -109,7 +128,7 @@ char* generateString()
     return s;
 }
 
-char* toUpperString(const char *str)
+char* toUpperString(const char* str)
 {
     int len = strlen(str);
     char *upper = (char*)calloc(len + 1, sizeof(char));
@@ -118,6 +137,17 @@ char* toUpperString(const char *str)
         upper[i] = toupper(str[i]);
     
     return upper;
+}
+
+char* reverseString(const char* str)
+{
+    int len = strlen(str);
+    char *reverse = (char*)calloc(len + 1, sizeof(char));
+    
+    for(int i = 0; i < len; i++)
+        reverse[len - i - 1] = str[i];
+    
+    return reverse;
 }
 
 void referenceTypeTest()
@@ -135,8 +165,14 @@ void referenceTypeTest()
 
     printf("\n\n");
 
+    SSMapOptions options = (SSMapOptions){0};
+    options.hashFn = fnv32;
+    options.equalsFn = equalsStr;
+    options.defaultValue = NULL;
+    options.freeFn = free;
+
     SSMap map;
-    SSMapInit(&map);
+    SSMapInit(&map, options);
 
     printf("--- Start test 1: add %d strings ---\n", count);
     start = getTime();
@@ -173,13 +209,28 @@ void referenceTypeTest()
     for(int i = 0; i < count/2; i++)
     {
         int index = rand() % count;
-        SSMapSet(&map, strings[index], strings[index]);
+        char* reverse = reverseString(strings[index]);
+        SSMapSet(&map, strings[index], reverse);
         char *value = SSMapGet(&map, strings[index]);
-        assert(!strcmp(strings[index], value));
+        assert(equalsStr(reverse, value));
     }
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 3: set existing %d objects ---\n", count/2);
+
+    printf("\n");
+
+    printf("--- Start test 4: remove %d objects ---\n", count/2);
+    start = getTime();
+    for(int i = 0; i < count/2; i++)
+    {
+        int index = rand() % map.count;
+        SSMapRemove(&map, strings[index]);
+        assert(!SSMapContains(&map, strings[index]));
+    }
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End test 4: remove %d objects ---\n", count/2);
 }
 
 int main(int argc, char **argv)

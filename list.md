@@ -21,11 +21,6 @@ Use the macro `shlDefineList` to generate the function implementations.
 ```c
 #include "list.h"
 
-bool intEquals(const int x, const int y)
-{
-    return x == y;
-}
-
 shlDeclareList(IntList, int)
 shlDefineList(IntList, int)
 ```
@@ -44,8 +39,8 @@ The list structure allows the following operations (all functions all prefixed w
 | `Get`(_typeName_* list, int32_t index) | Gets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can use directly `list->items[index]`. | _typeName_ |
 | `Set`(_typeName_* list, int32_t index, _itemType_ value) | Sets the value in the list at the `index` position. This function does check bounds of the list. If you don't want the list to check bounds when accesing elements you can assign directly `list->items[index] = value`. This function returns the element previously in the `index` position. | _typeName_ |
 | `Contains`(_typeName_* list, _itemType_ value) | Return `true` if an object is contained in the list. | bool |
-| `Remove`(_typeName_* list, _itemType_ value) | Remove the first occurrence of an element in the list. This function shift all the remaining elements on index to the left. This function returns the element removed. | void |
-| `RemoveAt`(_typeName_* list, int32_t index) | Remove the element at the position `index`. This function shift all the remaining elements on index to the left. This function returns the element removed. | void |
+| `Remove`(_typeName_* list, _itemType_ value) | Remove the first occurrence of an element in the list. This function shift all the remaining elements on index to the left. | void |
+| `RemoveAt`(_typeName_* list, int32_t index) | Remove the element at the position `index`. This function shift all the remaining elements on index to the left. | void |
 | `RemoveAtRange`(_typeName_* list, int32_t index, int32_t count) | Remove `count` elements from the position `index`. This function shift all the remaining elements on index to the left. | void |
 | `Clear`(_typeName_* list) | Clear the list, freeing every element if a `freeFn` was provided. Doesn't free the list itself. | void |
 | `Reverse`(_typeName_* list) | Reverse the list. | void |
@@ -75,7 +70,7 @@ bool intEquals(const int x, const int y)
 }
 
 shlDeclareList(IntList, int)
-shlDefineList(IntList, int, intEquals, 0)
+shlDefineList(IntList, int)
 
 int main()
 {

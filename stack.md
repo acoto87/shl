@@ -21,13 +21,8 @@ Use the macro `shlDefineStack` to generate the function implementations.
 ```c
 #include "stack.h"
 
-bool intEquals(const int x, const int y)
-{
-    return x == y;
-}
-
 shlDeclareStack(IntStack, int)
-shlDefineStack(IntStack, int, intEquals, 0)
+shlDefineStack(IntStack, int)
 ```
 
 This list allows the following operations:
@@ -64,7 +59,7 @@ bool intEquals(const int x, const int y)
 }
 
 shlDeclareStack(IntStack, int)
-shlDefineStack(IntStack, int, intEquals, 0)
+shlDefineStack(IntStack, int)
 
 int main()
 {

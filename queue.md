@@ -21,13 +21,8 @@ Use the macro `shlDefineQueue` to generate the function implementations.
 ```c
 #include "queue.h"
 
-bool intEquals(const int x, const int y)
-{
-    return x == y;
-}
-
 shlDeclareQueue(IntList, int)
-shlDefineQueue(IntList, int, intEquals, 0)
+shlDefineQueue(IntList, int)
 ```
 
 This list allows the following operations:
@@ -64,7 +59,7 @@ bool intEquals(const int x, const int y)
 }
 
 shlDeclareQueue(IntQueue, int)
-shlDefineQueue(IntQueue, int, intEquals, 0)
+shlDefineQueue(IntQueue, int)
 
 int main()
 {

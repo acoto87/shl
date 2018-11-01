@@ -20,6 +20,14 @@
 #include <stdlib.h>
 
 #define shlDeclareMap(typeName, keyType, valueType) \
+    typedef struct \
+    { \
+        valueType defaultValue; \
+        uint32_t (*hashFn)(const keyType key); \
+        bool (*equalsFn)(const keyType item1, const keyType item2); \
+        void (*freeFn)(valueType item); \
+    } typeName ## Options; \
+    \
     typedef struct { \
         bool active; \
         uint32_t hash; \
@@ -29,20 +37,26 @@
     } typeName ## __Entry__; \
     \
     typedef struct { \
-        typeName ## __Entry__* entries; \
         uint32_t count; \
         uint32_t capacity; \
         uint32_t loadFactor; \
         uint32_t shift; \
+        uint32_t (*hashFn)(const keyType key); \
+        bool (*equalsFn)(const keyType item1, const keyType item2); \
+        void (*freeFn)(valueType item); \
+        valueType defaultValue; \
+        typeName ## __Entry__* entries; \
     } typeName; \
     \
-    void typeName ## Init(typeName* map); \
+    void typeName ## Init(typeName* map, typeName ## Options options); \
     void typeName ## Free(typeName* map); \
-    valueType typeName ## Set(typeName* map, keyType key, valueType value); \
+    bool typeName ## Contains(typeName* map, keyType key); \
     valueType typeName ## Get(typeName* map, keyType key); \
-    valueType typeName ## Remove(typeName* map, keyType key);
+    void typeName ## Set(typeName* map, keyType key, valueType value); \
+    void typeName ## Remove(typeName* map, keyType key); \
+    void typeName ## Clear(typeName* map);
 
-#define shlDefineMap(typeName, keyType, valueType, hashFn, equalsFn, defaultValue) \
+#define shlDefineMap(typeName, keyType, valueType) \
     static uint32_t typeName ## __fibHash(uint32_t hash, uint32_t shift) \
     { \
         const uint32_t hashConstant = 2654435769u; \
@@ -60,18 +74,22 @@
         return -1; \
     } \
     \
-    static valueType typeName ## __insert(typeName* map, keyType key, valueType value) \
+    static void typeName ## __insert(typeName* map, keyType key, valueType value) \
     { \
         uint32_t hash, index, next; \
-        hash = index = typeName ## __fibHash(hashFn(key), map->shift); \
+        hash = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
         while (map->entries[index].active && map->entries[index].next >= 0) \
         { \
-            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
+            if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
                 valueType currentValue = map->entries[index].value; \
                 map->entries[index].value = value; \
-                return currentValue; \
+                \
+                if (map->freeFn) \
+                    map->freeFn(currentValue); \
+                \
+                return; \
             } \
             \
             index = map->entries[index].next; \
@@ -79,11 +97,15 @@
         \
         if (map->entries[index].active) \
         { \
-            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
+            if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
                 valueType currentValue = map->entries[index].value; \
                 map->entries[index].value = value; \
-                return currentValue; \
+                \
+                if (map->freeFn) \
+                    map->freeFn(currentValue); \
+                \
+                return; \
             } \
         } \
         \
@@ -97,7 +119,6 @@
         map->entries[next].hash = hash; \
         map->entries[next].next = -1; \
         map->count++; \
-        return value; \
     } \
     \
     static void typeName ## __resize(typeName* map) \
@@ -118,8 +139,12 @@
         free(old); \
     } \
     \
-    void typeName ## Init(typeName* map) \
+    void typeName ## Init(typeName* map, typeName ## Options options) \
     { \
+        map->defaultValue = options.defaultValue; \
+        map->hashFn = options.hashFn; \
+        map->equalsFn = options.equalsFn; \
+        map->freeFn = options.freeFn; \
         map->shift = 29; \
         map->capacity = 8; \
         map->loadFactor = 6; \
@@ -129,49 +154,13 @@
     \
     void typeName ## Free(typeName* map) \
     { \
+        if (!map->entries) \
+            return; \
+        \
+        typeName ## Clear(map); \
+        \
         free(map->entries); \
         map->entries = 0; \
-        map->count = 0; \
-    } \
-    \
-    valueType typeName ## Set(typeName* map, keyType key, valueType value) \
-    { \
-        if (!map->entries) \
-            return defaultValue; \
-        \
-        if(map->count == map->loadFactor) \
-            typeName ## __resize(map); \
-        \
-        return typeName ## __insert(map, key, value); \
-    } \
-    \
-    valueType typeName ## Get(typeName* map, keyType key) \
-    { \
-        if (!map->entries) \
-            return defaultValue; \
-        \
-        uint32_t index, hash; \
-        hash = index = typeName ## __fibHash(hashFn(key), map->shift); \
-        \
-        valueType value = defaultValue; \
-        \
-        while (map->entries[index].active) \
-        { \
-            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
-            { \
-                value = map->entries[index].value; \
-                break; \
-            } \
-            \
-            if (map->entries[index].next < 0) \
-            { \
-                break; \
-            } \
-            \
-            index = map->entries[index].next; \
-        } \
-        \
-        return value; \
     } \
     \
     bool typeName ## Contains(typeName* map, keyType key) \
@@ -180,13 +169,13 @@
             return false; \
         \
         uint32_t index, hash; \
-        hash = index = typeName ## __fibHash(hashFn(key), map->shift); \
+        hash = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
         bool found = false; \
         \
         while (map->entries[index].active) \
         { \
-            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
+            if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
                 found = true; \
                 break; \
@@ -203,25 +192,68 @@
         return found; \
     } \
     \
-    valueType typeName ## Remove(typeName* map, keyType key) \
+    valueType typeName ## Get(typeName* map, keyType key) \
     { \
         if (!map->entries) \
-            return false; \
+            return map->defaultValue; \
         \
-        uint32_t prevIndex, index, hash; \
+        uint32_t index, hash; \
+        hash = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
-        hash = prevIndex = index = typeName ## __fibHash(hashFn(key), map->shift); \
-        \
-        valueType value = defaultValue; \
+        valueType value = map->defaultValue; \
         \
         while (map->entries[index].active) \
         { \
-            if(map->entries[index].hash == hash && equalsFn(map->entries[index].key, key)) \
+            if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
                 value = map->entries[index].value; \
+                break; \
+            } \
+            \
+            if (map->entries[index].next < 0) \
+            { \
+                break; \
+            } \
+            \
+            index = map->entries[index].next; \
+        } \
+        \
+        return value; \
+    } \
+    \
+    void typeName ## Set(typeName* map, keyType key, valueType value) \
+    { \
+        if (!map->entries) \
+            return; \
+        \
+        if(map->count == map->loadFactor) \
+            typeName ## __resize(map); \
+        \
+        typeName ## __insert(map, key, value); \
+    } \
+    \
+    void typeName ## Remove(typeName* map, keyType key) \
+    { \
+        if (!map->entries) \
+            return; \
+        \
+        uint32_t prevIndex, index, hash; \
+        \
+        hash = prevIndex = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
+        \
+        while (map->entries[index].active) \
+        { \
+            if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
+            { \
+                valueType value = map->entries[index].value; \
+                \
                 map->entries[prevIndex].next = map->entries[index].next; \
-                map->entries[index].value = defaultValue; \
+                map->entries[index].value = map->defaultValue; \
                 map->entries[index].active = false; \
+                \
+                if (map->freeFn) \
+                    map->freeFn(value); \
+                \
                 break; \
             } \
             \
@@ -234,7 +266,26 @@
             index = map->entries[index].next; \
         } \
         map->count--; \
-        return value; \
+    } \
+    \
+    void typeName ## Clear(typeName* map) \
+    { \
+        if (!map->entries) \
+            return; \
+        \
+        if (map->freeFn) \
+        { \
+            for(int32_t i = 0; i < map->count; i++) \
+            { \
+                if (map->entries[i].active) \
+                { \
+                    map->freeFn(map->entries[i].value); \
+                    map->entries[i].active = false; \
+                } \
+            } \
+        } \
+        \
+        map->count = 0; \
     }
 
 #endif //SHL_MAP_H
