@@ -7,6 +7,7 @@ These are single header libraries that I use in my code, much in the style of Se
 * queue.h: A generic queue implementation (see [queue.md](https://github.com/acoto87/shl/blob/master/queue.md)).
 * binary_heap.h: A generic binary heap implementation (see [binary_heap.md](https://github.com/acoto87/shl/blob/master/binary_heap.md))
 * map.h: A generic hash-table implementation (see [map.md](https://github.com/acoto87/shl/blob/master/map.md)).
+* set.h: A generic hash-set implementation (see [set.md](https://github.com/acoto87/shl/blob/master/set.md))
 * array.h: A generic helper to work with multi-dimentional arrays.
 * wave_writer.h: Contains functionality to write .wav files.
 

@@ -18,7 +18,8 @@
     CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 */
 
-#ifndef INCLUDE_SHL_WAVE_WRITER_H
+#ifndef SHL_WAVE_WRITER_H
+#define SHL_WAVE_WRITER_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -184,4 +185,4 @@ bool shlWaveFlush(shlWaveFile *waveFile, bool closeFile)
 }
 
 #endif // SHL_WAVE_WRITER_IMPLEMENTATION
-#endif // INCLUDE_SHL_WAVE_WRITER_H
+#endif // SHL_WAVE_WRITER_H

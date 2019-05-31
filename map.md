@@ -36,8 +36,8 @@ The map structure allows the following operations (all functions all prefixed wi
 | `Contains`(_typeName_* map, _keyType_ key) | Return `true` a key is contained in the map. | bool |
 | `Get`(_typeName_* map, _keyType_ key) | Gets the value asociated with the key `key`, or _defaultValue_ if there are no value asociated with the key. | _valueType_ |
 | `Set`(_typeName_* map, _keyType_ key, _valueType_ value) | Sets the value `value` asociated with the key `key`. If the key doesn't exists, the map create it. If the key already exists, the value is replaced, freeing the previous value if a `freeFn` function was provided.  | void |
-| `Remove`(_typeName_* map, _keyType_ key) | Remove the key `key` from the map, freeing the value associated with the key if a `freeFn` function was provided.  | void |
-| `Clear`(_typeName_* list) | Clear the map, freeing every element if a `freeFn` was provided. Doesn't free the map itself. | void |
+| `Remove`(_typeName_* map, _keyType_ key) | Remove the key `key` from the map, freeing the value associated with the key if a `freeFn` function was provided. | void |
+| `Clear`(_typeName_* map) | Clear the map, freeing every element if a `freeFn` was provided. Doesn't free the map itself. | void |
 
 ## Options
 
@@ -47,7 +47,7 @@ Each definition of a map declare a struct _typeName_ Options that is used to ini
 | --- | --- | --- |
 | `hashFn` | uint32_t (*)(const _keyType_) | A pointer to a function that takes a key and returns a hash value for that key. |
 | `equalsFn` | bool (*)(const _keyType_, const _keyType_) | A pointer to a function that takes two keys, and returns `true` if the keys are equals, and returns `false` otherwise. |
-| `freeFn` | void (*)(_valueType_) | _(optional)_ A pointer to a function that takes an element and free it. If no `freeFn` is provided, then the operations `Set` (when there is a value to replace), `Remove`, `Clear` and `Free` doesn't free the elements and the user of the map is the responsible for free the elements. |
+| `freeFn` | void (*)(_valueType_) | _(optional)_ A pointer to a function that takes an element and free it. If no `freeFn` is provided, then the operations `Set` (when there is a value to replace), `Remove`, `Clear` and `Free` doesn't free the elements and the user of the map is the responsible for freeing the elements. |
 | `defaultValue` | _valueType_ | The value to return when you try to access an element that doesn't exist. |
 
 Example:

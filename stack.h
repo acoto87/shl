@@ -63,7 +63,6 @@
     void typeName ## __resize(typeName *stack) \
     { \
         uint32_t oldCapacity = stack->capacity; \
-        itemType *old = stack->items; \
         \
         stack->capacity = oldCapacity << 1; \
         stack->items = (itemType *)realloc(stack->items, stack->capacity * sizeof(itemType)); \
