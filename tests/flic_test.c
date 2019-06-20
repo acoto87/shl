@@ -19,30 +19,28 @@ int main(int argc, char **argv)
 
     const char* fileName = argv[1];
 
-    shlFlic flic;
-    flicOpen(&flic, fileName);
+    Flic flic;
+    if (!flicOpen(&flic, fileName))
+    {
+        printf("Could not open the FLIC file\n");
+        return -1;
+    }
+
+    // accumulative image data
+    uint8_t* imageData = (uint8_t*)calloc(flic.width * flic.height * 3, sizeof(uint8_t));
 
     for (int i = 0; i < flic.frames; i++)
     {
-        shlFlicFrame frame;
-        frame.pixels = (uint8_t*)calloc(flic.width * flic.height, sizeof(uint8_t));
+        FlicFrame frame;
+        frame.pixels = (uint16_t*)calloc(flic.width * flic.height, sizeof(uint16_t));
         frame.rowStride = flic.width;
         if (flicReadFrame(&flic, &frame))
         {
-            printf("------- pixels -------\n");
-            for (int y = 0; y < flic.height; y++)
-            {
-                for (int x = 0; x < flic.width; x++)
-                {
-                    printf("%d ", frame.pixels[y * flic.width + x]);
-                }
+            flicMakeImage(&flic, &frame, imageData);
 
-                printf("\n");
-            }
-
-            printf("------- colors -------\n");
-            for (int j = 0; j < FLI_COLORS_SIZE/3; j++)
-                printf("(%d, %d, %d)\n", frame.colors[j*3+0], frame.colors[j*3+1], frame.colors[j*3+2]);
+            char imageFileName[10];
+            sprintf(imageFileName, "frame%02d.bmp", i);
+            stbi_write_bmp(imageFileName, flic.width, flic.height, 3, imageData);
         }
     }
 

@@ -7,7 +7,7 @@ OutputPath="./build/arm32"
 # ProfilerFlags="-pg"
 # OptimizeFlags="-O2"
 # AssemblyFlags="-g -Wa,-ahl"
-# DebugFlags="-g -O1 -D __DEBUG__"
+# DebugFlags="-g"
 CommonCompilerFlags="-std=c99 -Wall -x c $ProfilerFlags $OptimizeFlags $AssemblyFlags $DebugFlags"
 CommonLinkerFlags="-l m"
 
