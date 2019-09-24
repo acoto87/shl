@@ -30,3 +30,4 @@ gcc $CommonCompilerFlags $CommonLinkerFlags ../../stack_test.c -o stack_test
 gcc $CommonCompilerFlags $CommonLinkerFlags ../../memory_buffer_test.c -o memory_buffer_test
 gcc $CommonCompilerFlags $CommonLinkerFlags ../../xmi2mid.c -o xmi2mid
 gcc $CommonCompilerFlags $CommonLinkerFlags ../../flic_test.c -o flic_test
+gcc $CommonCompilerFlags $CommonLinkerFlags ../../memzone_test.c -o memzone_test

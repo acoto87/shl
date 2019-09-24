@@ -38,7 +38,7 @@ int main(int argc, char **argv)
         {
             flicMakeImage(&flic, &frame, imageData);
 
-            char imageFileName[10];
+            char imageFileName[16];
             sprintf(imageFileName, "frame%02d.bmp", i);
             stbi_write_bmp(imageFileName, flic.width, flic.height, 3, imageData);
         }

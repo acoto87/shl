@@ -27,5 +27,8 @@ gcc %CommonCompilerFlags% ..\..\set_test.c -o set_test.exe
 gcc %CommonCompilerFlags% ..\..\queue_test.c -o queue_test.exe
 gcc %CommonCompilerFlags% ..\..\stack_test.c -o stack_test.exe
 gcc %CommonCompilerFlags% ..\..\memory_buffer_test.c -o memory_buffer_test.exe
+gcc %CommonCompilerFlags% ..\..\xmi2mid.c -o xmi2mid.exe
+gcc %CommonCompilerFlags% ..\..\flic_test.c -o flic_test.exe
+gcc %CommonCompilerFlags% ..\..\memzone_test.c -o memzone_test.exe
 
 POPD
