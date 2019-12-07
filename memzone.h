@@ -30,7 +30,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,7 +51,7 @@ typedef struct memblock_s
 {
     size_t size;                        // size of the block
     memtype_t type;                     // the type of the block
-    void** user;                        // a pointer to the pointer returned to the user
+    void* user;                         // a pointer to the pointer returned to the user
     struct memblock_s *next, *prev;     // pointers to next and prev in the block list
 } memblock_t;
 
@@ -66,9 +68,11 @@ void* mzAlloc(memzone_t* zone, size_t size);
 void mzFree(memzone_t* zone, void* p);
 int32_t mzGetNumberOfBlocks(memzone_t* zone);
 size_t mzGetUsableFreeSize(memzone_t* zone);
-int32_t mzGetFragPercentage(memzone_t* zone);
-void mzDefrag(memzone_t* zone);
-void mzPrint(memzone_t* zone, bool printBlocks);
+float mzGetFragPercentage(memzone_t* zone);
+// void mzDefrag(memzone_t* zone);
+void mzPrint(memzone_t* zone, bool printBlocks, bool printMap);
+
+#define mzIsBlockEmpty(block) ((block)->user == NULL)
 
 #ifdef __cplusplus
 }
@@ -136,8 +140,9 @@ void* mzAlloc(memzone_t* zone, size_t size)
         }
     }
 
-    // if sizeToAlloc is equals to the block size, allocate there and not split the block
-    // otherwise, create a new block and split the current
+    // if sizeToAlloc is less or equals to the block size,
+    // allocate there and not split the block otherwise,
+    // create a new block and split the current
     if (rover->size > sizeToAlloc)
     {
         // create a new empty block with the remaining free space
@@ -160,9 +165,8 @@ void* mzAlloc(memzone_t* zone, size_t size)
 
     zone->usedSize += size;
 
-    void* ptr = __pointerOffset(void, rover, sizeof(memblock_t));
-    rover->user = &ptr;
-    return ptr;
+    rover->user = __pointerOffset(void, rover, sizeof(memblock_t));
+    return rover->user;
 }
 
 void mzFree(memzone_t* zone, void* p)
@@ -177,7 +181,7 @@ void mzFree(memzone_t* zone, void* p)
     if (!rover->user || rover->user != p)
     {
         rover = rover->next;
-        while (!rover->user || *rover->user != p)
+        while (!rover->user || rover->user != p)
         {
             // if the rover pointer traversed the entire list and didn't
             // find any block to de-alloc, just return
@@ -193,6 +197,24 @@ void mzFree(memzone_t* zone, void* p)
     rover->user = NULL;
 
     zone->usedSize -= rover->size - sizeof(memblock_t);
+
+    // merge with next block if empty
+    if (mzIsBlockEmpty(rover->next))
+    {
+        memblock_t* next = rover->next;
+        rover->size += next->size;
+        rover->next = next->next;
+        rover->next->prev = rover;
+    }
+
+    // merge with previous if empty
+    if (mzIsBlockEmpty(rover->prev))
+    {
+        memblock_t* prev = rover->prev;
+        prev->size += rover->size;
+        prev->next = rover->next;
+        prev->next->prev = prev;
+    }
 }
 
 int32_t mzGetNumberOfBlocks(memzone_t* zone)
@@ -225,7 +247,7 @@ size_t mzGetUsableFreeSize(memzone_t* zone)
     return usableFreeSize;
 }
 
-int32_t mzGetFragPercentage(memzone_t* zone)
+float mzGetFragPercentage(memzone_t* zone)
 {
     /**
      * (free - freemax)
@@ -254,35 +276,67 @@ int32_t mzGetFragPercentage(memzone_t* zone)
         rover = rover->next;
     } while (rover != &zone->blockList);
 
-    return free > 0 ? (int32_t)(((float)(free - freeMax) / free) * 100) : 0;
+    return free > 0 ? ((float)(free - freeMax) / free) * 100 : 0;
 }
 
-void mzDefrag(memzone_t* zone)
-{
-    size_t usableFreeSize = 0;
+// void mzDefrag(memzone_t* zone)
+// {
+//     memblock_t* start = &zone->blockList;
+//     do
+//     {
+//         if (!start->user)
+//         {
+//             size_t s = 0;
 
-    memblock_t* rover = &zone->blockList;
-    do
-    {
-        // ???
-    } while (rover != &zone->blockList);
+//             memblock_t* end = start;
+//             while (!end->user)
+//             {
+//                 s += end->size;
+//                 end = end->next;
+//             }
 
-    memblock_t* newBlock = __pointerOffset(memblock_t, rover, sizeToAlloc);
-    newBlock->size = usableFreeSize + sizeof(memblock_t);
-    newBlock->type = MEM_STATIC;
-    newBlock->user = NULL;
-    newBlock->prev = NULL;
-    newBlock->next = NULL;
-}
+//             if (end == &zone->blockList)
+//             {
+//                 start->size = s;
+//                 start->next = end;
 
-void mzPrint(memzone_t* zone, bool printBlocks)
+//                 end->prev = start;
+//                 break;
+//             }
+
+//             memblock_t prevStartBlock = *start;
+//             memblock_t prevEndBlock = *end;
+
+//             memmove(start, end, end->size);
+
+//             size_t currentStartSize = start->size;
+
+//             memblock_t* newBlock = __pointerOffset(memblock_t, start, currentStartSize);
+//             newBlock->size = prevStartBlock.size;
+//             newBlock->type = MEM_STATIC;
+//             newBlock->user = NULL;
+//             newBlock->prev = start;
+//             newBlock->next = prevEndBlock.next;
+
+//             start->prev = prevStartBlock.prev;
+//             start->next = newBlock;
+
+//             newBlock->next->prev = newBlock;
+//         }
+
+//         start = start->next;
+//     } while (start != &zone->blockList);
+// }
+
+void mzPrint(memzone_t* zone, bool printBlocks, bool printMap)
 {
     printf("Zone: %p -> %p\n", zone, __pointerOffset(memzone_t, zone, zone->maxSize));
+    printf("  rover: %p\n", zone->rover);
     printf("  maxSize: %u\n", zone->maxSize);
     printf("  usedSize: %u\n", zone->usedSize);
-    printf("  rover: %p\n", zone->rover);
+    printf("  freeSize: %d\n", mzGetUsableFreeSize(zone));
     printf("  numberOfBlocks: %d\n", mzGetNumberOfBlocks(zone));
-    printf("  fragmentation: %d%%\n", mzGetFragPercentage(zone));
+    printf("  fragmentation: %.2f%%\n", mzGetFragPercentage(zone));
 
     if (printBlocks)
     {
@@ -301,6 +355,33 @@ void mzPrint(memzone_t* zone, bool printBlocks)
 
             rover = rover->next;
         } while (rover != &zone->blockList);
+    }
+
+    if (printMap)
+    {
+        printf("  Map:\n");
+
+        char buffer[201];
+
+        memblock_t* rover = &zone->blockList;
+
+        int32_t numberOfBlocks = mzGetNumberOfBlocks(zone);
+        int32_t lines = (int32_t)ceilf((float)numberOfBlocks / 200);
+        while (lines--)
+        {
+            memset(buffer, 0, sizeof(buffer));
+
+            for (int32_t i = 0; i < 200; i++)
+            {
+                buffer[i] = mzIsBlockEmpty(rover) ? '-' : '+';
+
+                rover = rover->next;
+                if (rover == &zone->blockList)
+                    break;
+            }
+
+            printf("%s\n", buffer);
+        }
     }
 }
 

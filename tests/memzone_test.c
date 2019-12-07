@@ -22,13 +22,14 @@ typedef struct
     EntityType type;
 } Entity;
 
-#define ENTITY_COUNT 25000
-#define randabi(a, b) (int32_t)(a + ((float)rand() / RAND_MAX) * (b - a));
+#define ENTITY_COUNT 30000
+#define randabi(a, b) (int32_t)((a) + ((float)rand() / RAND_MAX) * ((b) - (a)))
 
 int main()
 {
     srand(time(NULL));
 
+    printf("sizeof(Entity) = %u\n", sizeof(Entity));
     printf("sizeof(memzone_t) = %u\n", sizeof(memzone_t));
     printf("sizeof(memblock_t) = %u\n", sizeof(memblock_t));
     printf("\n");
@@ -52,6 +53,7 @@ int main()
     for (int32_t i = 0; i < ENTITY_COUNT; i++)
     {
         entities[i] = (Entity*)mzAlloc(zone, sizeof(Entity));
+        entities[i]->id = i;
         assert(entities[i]);
 
         size_t partialSizeOfArrayElements = (i + 1) * (sizeof(memblock_t) + sizeof(Entity));
@@ -63,26 +65,31 @@ int main()
     assert(mzGetUsableFreeSize(zone) == zone->maxSize - zone->usedSize);
     assert(mzGetNumberOfBlocks(zone) == 1 + ENTITY_COUNT + 1); // 1 for the array itself, ENTITY_COUNT for the elements, 1 for the empty block
 
+    mzPrint(zone, false, true);
+
     int32_t k = 0;
     for (int32_t i = 0; i < ENTITY_COUNT / 2; i++)
     {
-        int32_t index = randabi(0, ENTITY_COUNT);
+        int32_t index = randabi(0, ENTITY_COUNT - 1);
         if (entities[index])
         {
             mzFree(zone, entities[index]);
             entities[index] = NULL;
 
-            assert(zone->usedSize == sizeof(memzone_t) + sizeOfArray + sizeOfArrayElements - ((k + 1) * sizeof(Entity)) + sizeof(memblock_t));
+            size_t partialSizeOfDeletedElements = (k + 1) * sizeof(Entity);
+            size_t partialSizeOfArrayElements = sizeOfArrayElements - partialSizeOfDeletedElements;
+            assert(zone->usedSize == sizeof(memzone_t) + sizeOfArray + partialSizeOfArrayElements + sizeof(memblock_t));
             k++;
         }
     }
 
     size_t sizeOfDeletedArrayElements = k * sizeof(Entity);
-    assert(zone->usedSize == sizeof(memzone_t) + sizeOfArray + sizeOfArrayElements - sizeOfDeletedArrayElements + sizeof(memblock_t));
-    assert(mzGetUsableFreeSize(zone) == zone->maxSize - zone->usedSize);
-    assert(mzGetNumberOfBlocks(zone) == 1 + ENTITY_COUNT + 1); // 1 for the array itself, ENTITY_COUNT for the elements, 1 for the empty block
+    sizeOfArrayElements -= sizeOfDeletedArrayElements;
+    assert(zone->usedSize == sizeof(memzone_t) + sizeOfArray + sizeOfArrayElements + sizeof(memblock_t));
+    assert(mzGetUsableFreeSize(zone) >= zone->maxSize - zone->usedSize);
+    assert(mzGetNumberOfBlocks(zone) <= 1 + ENTITY_COUNT + 1); // 1 for the array itself, ENTITY_COUNT for the elements, 1 for the empty block
 
-    mzPrint(zone, false);
+    mzPrint(zone, false, true);
 
     free(zone);
 
