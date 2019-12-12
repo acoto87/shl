@@ -10,6 +10,7 @@ These are single header libraries that I use in my code, much in the style of Se
 * set.h: A generic hash-set implementation (see [set.md](https://github.com/acoto87/shl/blob/master/set.md))
 * array.h: A generic helper to work with multi-dimentional arrays.
 * wave_writer.h: Contains functionality to write .wav files.
+* memzone.h: A simple memory allocator. (see [memzone.md](https://github.com/acoto87/shl/blob/master/memzone.md))
 
 See the tests/*_tests.c files to see how to use them.
 
