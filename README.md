@@ -9,7 +9,9 @@ These are single header libraries that I use in my code, much in the style of Se
 * map.h: A generic hash-table implementation (see [map.md](https://github.com/acoto87/shl/blob/master/map.md)).
 * set.h: A generic hash-set implementation (see [set.md](https://github.com/acoto87/shl/blob/master/set.md))
 * array.h: A generic helper to work with multi-dimentional arrays.
-* wave_writer.h: Contains functionality to write .wav files.
+* wave_writer.h: Contains functionalities to write .wav files.
+* memory_buffer.h: An in-memory buffer implementation with random access.
+* flic.h: Contains functionalities to read FLIC files. It's a C port of the C++ implementation by David Capello's Aseprite FLIC Library: https://github.com/aseprite/flic
 * memzone.h: A simple memory allocator. (see [memzone.md](https://github.com/acoto87/shl/blob/master/memzone.md))
 
 See the tests/*_tests.c files to see how to use them.
