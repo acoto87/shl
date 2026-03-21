@@ -100,22 +100,21 @@ int main()
         int32_t index = randabi(0, ENTITY_COUNT - 1);
         if (entities[index])
         {
+            int32_t blocksBeforeFree = mzGetNumberOfBlocks(zone);
             size_t usedSizeBeforeFree = zone->usedSize;
             mzFree(zone, entities[index]);
             entities[index] = NULL;
 
-            size_t partialSizeOfDeletedElements = (k + 1) * sizeof(Entity);
-            size_t partialSizeOfArrayElements = sizeOfArrayElements - partialSizeOfDeletedElements;
-            assert(zone->usedSize <= usedSizeBeforeFree - sizeof(Entity));
-            assert(zone->usedSize <= sizeof(memzone_t) + sizeOfArray + partialSizeOfArrayElements + sizeof(memblock_t));
+            int32_t blocksAfterFree = mzGetNumberOfBlocks(zone);
+            size_t reclaimedMetadata = (size_t)(blocksBeforeFree - blocksAfterFree) * sizeof(memblock_t);
+            assert(zone->usedSize == usedSizeBeforeFree - sizeof(Entity) - reclaimedMetadata);
             k++;
         }
     }
 
     size_t sizeOfDeletedArrayElements = k * sizeof(Entity);
     sizeOfArrayElements -= sizeOfDeletedArrayElements;
-    assert(zone->usedSize <= sizeof(memzone_t) + sizeOfArray + sizeOfArrayElements + sizeof(memblock_t));
-    assert(mzGetUsableFreeSize(zone) >= zone->maxSize - zone->usedSize);
+    assert(zone->usedSize == zone->maxSize - mzGetUsableFreeSize(zone));
     assert(mzGetNumberOfBlocks(zone) <= 1 + ENTITY_COUNT + 1); // 1 for the array itself, ENTITY_COUNT for the elements, 1 for the empty block
 
     mzPrint(zone, false, true);

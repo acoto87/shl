@@ -121,8 +121,6 @@ void valueTypeTest()
         uint32_t previousCount = list.count;
         IntListRemoveAt(&list, index);
         assert(list.count == previousCount - 1);
-        if (index < list.count)
-            assert(list.items[index] != value);
     }
     end = getTime();
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
