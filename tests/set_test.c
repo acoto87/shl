@@ -29,6 +29,46 @@ bool equalsInt(const int a, const int b)
 shlDeclareSet(IntSet, int)
 shlDefineSet(IntSet, int)
 
+static uint32_t collideInt(const int x)
+{
+    (void)x;
+    return 1;
+}
+
+static int setFreeCount = 0;
+
+void freeTrackedInt(int value)
+{
+    setFreeCount += value;
+}
+
+shlDeclareSet(CollisionSet, int)
+shlDefineSet(CollisionSet, int)
+
+void collisionAndEdgeCaseValueTest()
+{
+    CollisionSetOptions options = (CollisionSetOptions){0};
+    options.hashFn = collideInt;
+    options.equalsFn = equalsInt;
+    options.defaultValue = -1;
+
+    CollisionSet set;
+    CollisionSetInit(&set, options);
+
+    for (int i = 0; i < 64; i++)
+        assert(CollisionSetAdd(&set, i));
+
+    CollisionSetRemove(&set, 0);
+    assert(!CollisionSetContains(&set, 0));
+    for (int i = 1; i < 64; i++)
+        assert(CollisionSetContains(&set, i));
+
+    CollisionSetRemove(&set, 9999);
+    assert(set.count == 63);
+
+    CollisionSetFree(&set);
+}
+
 void valueTypeTest()
 {
     float start, end;
@@ -134,6 +174,35 @@ void freeStr(char* str)
     free((void*)str);
 }
 
+shlDeclareSet(TrackedSet, int)
+shlDefineSet(TrackedSet, int)
+
+void clearEdgeCaseTest()
+{
+    TrackedSetOptions options = (TrackedSetOptions){0};
+    options.hashFn = collideInt;
+    options.equalsFn = equalsInt;
+    options.defaultValue = 0;
+    options.freeFn = freeTrackedInt;
+
+    TrackedSet set;
+    TrackedSetInit(&set, options);
+
+    assert(TrackedSetAdd(&set, 1));
+    assert(TrackedSetAdd(&set, 10));
+    assert(TrackedSetAdd(&set, 100));
+    TrackedSetRemove(&set, 10);
+
+    setFreeCount = 0;
+    TrackedSetClear(&set);
+    assert(set.count == 0);
+    assert(setFreeCount == 101);
+    assert(!TrackedSetContains(&set, 1));
+    assert(!TrackedSetContains(&set, 100));
+
+    TrackedSetFree(&set);
+}
+
 void referenceTypeTest()
 {
     float start, end;
@@ -220,10 +289,12 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     valueTypeTest();
+    collisionAndEdgeCaseValueTest();
 
     printf("\n\n");
 
     referenceTypeTest();
+    clearEdgeCaseTest();
 
     return 0;
 }

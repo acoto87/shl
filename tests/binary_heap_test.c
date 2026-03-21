@@ -19,6 +19,11 @@ int32_t compareInt(const int a, const int b)
     return a - b;
 }
 
+bool equalsInt(const int a, const int b)
+{
+    return a == b;
+}
+
 shlDeclareBinaryHeap(IntHeap, int)
 shlDefineBinaryHeap(IntHeap, int)
 
@@ -30,6 +35,7 @@ void valueTypeTest()
     IntHeapOptions options = {0};
     options.compareFn = compareInt;
     options.defaultValue = 0;
+    options.equalsFn = equalsInt;
     
     IntHeap heap;
     IntHeapInit(&heap, options);
@@ -74,6 +80,44 @@ void valueTypeTest()
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 3:  pop min object ---\n");
+}
+
+void edgeCaseValueTypeTest()
+{
+    IntHeapOptions options = {0};
+    options.compareFn = compareInt;
+    options.equalsFn = equalsInt;
+    options.defaultValue = -1;
+
+    IntHeap heap;
+    IntHeapInit(&heap, options);
+
+    assert(IntHeapPeek(&heap) == -1);
+    assert(IntHeapPop(&heap) == -1);
+
+    IntHeapPush(&heap, 10);
+    IntHeapPush(&heap, 20);
+    IntHeapPush(&heap, 30);
+    IntHeapPush(&heap, 40);
+
+    int index = IntHeapIndexOf(&heap, 30);
+    assert(index >= 0);
+    IntHeapUpdate(&heap, index, 5);
+    assert(IntHeapPeek(&heap) == 5);
+
+    index = IntHeapIndexOf(&heap, 10);
+    assert(index >= 0);
+    IntHeapUpdate(&heap, index, 50);
+
+    int previous = IntHeapPop(&heap);
+    while (heap.count > 0)
+    {
+        int current = IntHeapPop(&heap);
+        assert(previous <= current);
+        previous = current;
+    }
+
+    IntHeapFree(&heap);
 }
 
 int32_t compareStrLength(const char* a, const char* b)
@@ -174,6 +218,7 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     valueTypeTest();
+    edgeCaseValueTypeTest();
 
     printf("\n\n");
 

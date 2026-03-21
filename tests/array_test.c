@@ -33,7 +33,9 @@ void floatPrintArray(int n, int m, float** arr)
 void valueTypeTest()
 {
     float** arr = floatCreateArray(N, M);
-    
+    assert(arr);
+    assert(arr[0]);
+     
     for(int i = 0; i < N; i++)
     {
         for(int j = 0; j < M; j++)
@@ -41,6 +43,9 @@ void valueTypeTest()
             arr[i][j] = i * j;
         }
     }
+
+    assert(arr[1] == arr[0] + M);
+    assert(arr[N - 1] == arr[0] + (N - 1) * M);
 
     floatPrintArray(N, M, arr);
 
@@ -76,7 +81,9 @@ void pointPrintArray(int n, int m, Point*** arr)
 void referenceTypeTest()
 {
     Point*** arr = pointCreateArray(N, M);
-    
+    assert(arr);
+    assert(arr[0]);
+     
     for(int i = 0; i < N; i++)
     {
         for(int j = 0; j < M; j++)
@@ -87,9 +94,38 @@ void referenceTypeTest()
         }
     }
 
+    assert(arr[1] == arr[0] + M);
+    assert(arr[N - 1] == arr[0] + (N - 1) * M);
+
     pointPrintArray(N, M, arr);
 
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < M; j++)
+            free(arr[i][j]);
+    }
+
     pointFreeArray(arr);
+}
+
+void largeArrayTest()
+{
+    const int32_t rows = 256;
+    const int32_t cols = 256;
+    float** arr = floatCreateArray(rows, cols);
+    assert(arr);
+    assert(arr[rows - 1] == arr[0] + (rows - 1) * cols);
+
+    for (int32_t i = 0; i < rows; i++)
+    {
+        for (int32_t j = 0; j < cols; j++)
+            arr[i][j] = (float)(i + j);
+    }
+
+    assert(arr[0][0] == 0.0f);
+    assert(arr[255][255] == 510.0f);
+
+    floatFreeArray(arr);
 }
 
 int main(int argc, char **argv)
@@ -98,6 +134,7 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     valueTypeTest();
+    largeArrayTest();
 
     printf("\n\n");
 

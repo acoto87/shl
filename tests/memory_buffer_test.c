@@ -111,6 +111,46 @@ void testSeek(uint8_t* data, size_t length)
     assert(v == 369098752);
 }
 
+void test24BitIO()
+{
+    MemoryBuffer buffer = {0};
+    mbInitEmpty(&buffer);
+
+    assert(mbWriteInt24LE(&buffer, 0x00112233));
+    assert(mbWriteInt24BE(&buffer, 0x00445566));
+    assert(mbWriteUInt24LE(&buffer, 0x00778899));
+    assert(mbWriteUInt24BE(&buffer, 0x00AABBCC));
+    assert(buffer.length == 12);
+
+    assert(mbSeek(&buffer, 0));
+
+    int32_t signedValue = 0;
+    uint32_t unsignedValue = 0;
+
+    assert(mbReadInt24LE(&buffer, &signedValue));
+    assert(signedValue == 0x00112233);
+    assert(mbReadInt24BE(&buffer, &signedValue));
+    assert(signedValue == 0x00445566);
+    assert(mbReadUInt24LE(&buffer, &unsignedValue));
+    assert(unsignedValue == 0x00778899);
+    assert(mbReadUInt24BE(&buffer, &unsignedValue));
+    assert(unsignedValue == 0x00AABBCC);
+    assert(mbIsEOF(&buffer));
+
+    mbFree(&buffer);
+}
+
+void testSkipBoundaries(uint8_t* data, size_t length)
+{
+    MemoryBuffer buffer = {0};
+    mbInitFromMemory(&buffer, data, length);
+
+    assert(!mbSkip(&buffer, -1));
+    assert(mbSkip(&buffer, 11));
+    assert(mbPosition(&buffer) == 11);
+    assert(!mbSkip(&buffer, -12));
+}
+
 int main(int argc, char **argv)
 {
     float start, end;
@@ -149,6 +189,24 @@ int main(int argc, char **argv)
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End seek test ---\n");
+
+    printf("\n");
+
+    printf("--- Start 24-bit test ---\n");
+    start = getTime();
+    test24BitIO();
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End 24-bit test ---\n");
+
+    printf("\n");
+
+    printf("--- Start skip boundary test ---\n");
+    start = getTime();
+    testSkipBoundaries(data, length);
+    end = getTime();
+    printf("Time: %.2f seconds\n", end - start);
+    printf("--- End skip boundary test ---\n");
 
     return 0;
 }

@@ -22,6 +22,31 @@ bool intEquals(const int x, const int y)
 shlDeclareStack(IntStack, int)
 shlDefineStack(IntStack, int)
 
+void edgeCaseValueTypeTest()
+{
+    IntStackOptions options = {0};
+    options.defaultValue = -1;
+    options.equalsFn = intEquals;
+
+    IntStack stack;
+    IntStackInit(&stack, options);
+
+    assert(IntStackPeek(&stack) == -1);
+    assert(IntStackPop(&stack) == -1);
+
+    for (int i = 0; i < count * 2; i++)
+        IntStackPush(&stack, i);
+
+    for (int i = count * 2 - 1; i >= count; i--)
+        assert(IntStackPop(&stack) == i);
+
+    IntStackClear(&stack);
+    assert(stack.count == 0);
+    assert(IntStackPop(&stack) == -1);
+
+    IntStackFree(&stack);
+}
+
 void valueTypeTest()
 {
     float start, end;
@@ -99,6 +124,41 @@ void EntryFree(Entry* e)
 shlDeclareStack(EntriesStack, Entry*)
 shlDefineStack(EntriesStack, Entry*)
 
+static int stackFreeCount = 0;
+
+void EntryTrackFree(Entry* e)
+{
+    stackFreeCount++;
+    free(e);
+}
+
+void edgeCaseReferenceTypeTest()
+{
+    EntriesStackOptions options = {0};
+    options.defaultValue = NULL;
+    options.equalsFn = EntryEquals;
+    options.freeFn = EntryTrackFree;
+
+    EntriesStack stack;
+    EntriesStackInit(&stack, options);
+
+    for (int i = 0; i < 32; i++)
+    {
+        Entry *entry = (Entry*)malloc(sizeof(Entry));
+        entry->index = i;
+        entry->name = "entry";
+        EntriesStackPush(&stack, entry);
+    }
+
+    stackFreeCount = 0;
+    EntriesStackClear(&stack);
+    assert(stack.count == 0);
+    assert(stackFreeCount == 32);
+    assert(EntriesStackPeek(&stack) == NULL);
+
+    EntriesStackFree(&stack);
+}
+
 void referenceTypeTest()
 {
     float start, end;
@@ -169,10 +229,12 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     valueTypeTest();
+    edgeCaseValueTypeTest();
 
     printf("\n\n");
 
     referenceTypeTest();
+    edgeCaseReferenceTypeTest();
 
     return 0;
 }

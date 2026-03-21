@@ -240,7 +240,8 @@
     void typeName ## Remove(typeName *list, itemType value) \
     { \
         int32_t index = typeName ## IndexOf(list, value); \
-        typeName ## RemoveAt(list, index); \
+        if (index >= 0) \
+            typeName ## RemoveAt(list, index); \
     } \
     \
     void typeName ## Clear(typeName* list) \

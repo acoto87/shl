@@ -27,6 +27,51 @@ int32_t intCompare(const int x, const int y)
 shlDeclareList(IntList, int)
 shlDefineList(IntList, int)
 
+void edgeCaseValueTypeTest()
+{
+    IntListOptions options = {0};
+    options.defaultValue = -1;
+    options.equalsFn = intEquals;
+
+    IntList list;
+    IntListInit(&list, options);
+
+    assert(IntListGet(&list, 0) == -1);
+    IntListRemove(&list, 99);
+    assert(list.count == 0);
+
+    IntListAdd(&list, 2);
+    IntListAdd(&list, 3);
+    IntListInsert(&list, 0, 1);
+    IntListInsert(&list, list.count, 4);
+
+    assert(list.count == 4);
+    assert(IntListGet(&list, 0) == 1);
+    assert(IntListGet(&list, 3) == 4);
+
+    IntListRemove(&list, 99);
+    assert(list.count == 4);
+
+    IntListRemoveAtRange(&list, 2, 3);
+    assert(list.count == 4);
+
+    IntListReverse(&list);
+    assert(IntListGet(&list, 0) == 4);
+    assert(IntListGet(&list, 3) == 1);
+
+    int copy[6] = {0};
+    IntListCopyTo(&list, copy, 1);
+    assert(copy[1] == 4);
+    assert(copy[4] == 1);
+
+    int* array = IntListToArray(&list);
+    assert(array[0] == 4);
+    assert(array[3] == 1);
+    free(array);
+
+    IntListFree(&list);
+}
+
 void valueTypeTest()
 {
     float start, end;
@@ -73,8 +118,11 @@ void valueTypeTest()
     {
         int index = rand() % list.count;
         int value = list.items[index];
+        uint32_t previousCount = list.count;
         IntListRemoveAt(&list, index);
-        assert(list.items[index] != value);
+        assert(list.count == previousCount - 1);
+        if (index < list.count)
+            assert(list.items[index] != value);
     }
     end = getTime();
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
@@ -184,6 +232,44 @@ void EntryFree(Entry* e)
 
 shlDeclareList(EntriesList, Entry*)
 shlDefineList(EntriesList, Entry*)
+
+static int entryFreeCount = 0;
+
+void EntryTrackFree(Entry* e)
+{
+    entryFreeCount++;
+    free(e);
+}
+
+void edgeCaseReferenceTypeTest()
+{
+    EntriesListOptions options = {0};
+    options.defaultValue = NULL;
+    options.equalsFn = EntryEquals;
+    options.freeFn = EntryTrackFree;
+
+    EntriesList list;
+    EntriesListInit(&list, options);
+
+    for (int i = 0; i < 16; i++)
+    {
+        Entry* entry = (Entry*)malloc(sizeof(Entry));
+        entry->index = i;
+        entry->name = "edge";
+        EntriesListAdd(&list, entry);
+    }
+
+    entryFreeCount = 0;
+    EntriesListRemoveAtRange(&list, 4, 4);
+    assert(list.count == 12);
+    assert(entryFreeCount == 4);
+
+    EntriesListClear(&list);
+    assert(list.count == 0);
+    assert(entryFreeCount == 16);
+
+    EntriesListFree(&list);
+}
 
 void referenceTypeTest()
 {
@@ -347,10 +433,12 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     valueTypeTest();
+    edgeCaseValueTypeTest();
 
     printf("\n\n");
 
     referenceTypeTest();
+    edgeCaseReferenceTypeTest();
 
     return 0;
 }

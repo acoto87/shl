@@ -28,6 +28,50 @@ bool equalsInt(const int a, const int b)
 shlDeclareMap(IntMap, int, int)
 shlDefineMap(IntMap, int, int)
 
+static uint32_t collideInt(const int x)
+{
+    (void)x;
+    return 1;
+}
+
+static int mapFreeCount = 0;
+
+void freeTrackedInt(int value)
+{
+    mapFreeCount += value;
+}
+
+shlDeclareMap(CollisionMap, int, int)
+shlDefineMap(CollisionMap, int, int)
+
+void collisionAndEdgeCaseValueTest()
+{
+    CollisionMapOptions options = (CollisionMapOptions){0};
+    options.hashFn = collideInt;
+    options.equalsFn = equalsInt;
+    options.defaultValue = -1;
+
+    CollisionMap map;
+    CollisionMapInit(&map, options);
+
+    for (int i = 0; i < 64; i++)
+        CollisionMapSet(&map, i, i * 10);
+
+    assert(map.count == 64);
+    for (int i = 0; i < 64; i++)
+        assert(CollisionMapGet(&map, i) == i * 10);
+
+    CollisionMapRemove(&map, 0);
+    assert(!CollisionMapContains(&map, 0));
+    for (int i = 1; i < 64; i++)
+        assert(CollisionMapGet(&map, i) == i * 10);
+
+    CollisionMapRemove(&map, 9999);
+    assert(map.count == 63);
+
+    CollisionMapFree(&map);
+}
+
 void valueTypeTest()
 {
     float start, end;
@@ -156,6 +200,35 @@ void freeStr(char* str)
     free((void*)str);
 }
 
+shlDeclareMap(TrackedMap, int, int)
+shlDefineMap(TrackedMap, int, int)
+
+void clearEdgeCaseTest()
+{
+    TrackedMapOptions options = (TrackedMapOptions){0};
+    options.hashFn = collideInt;
+    options.equalsFn = equalsInt;
+    options.defaultValue = 0;
+    options.freeFn = freeTrackedInt;
+
+    TrackedMap map;
+    TrackedMapInit(&map, options);
+
+    TrackedMapSet(&map, 1, 1);
+    TrackedMapSet(&map, 2, 10);
+    TrackedMapSet(&map, 3, 100);
+    TrackedMapRemove(&map, 2);
+
+    mapFreeCount = 0;
+    TrackedMapClear(&map);
+    assert(map.count == 0);
+    assert(mapFreeCount == 101);
+    assert(!TrackedMapContains(&map, 1));
+    assert(!TrackedMapContains(&map, 3));
+
+    TrackedMapFree(&map);
+}
+
 void referenceTypeTest()
 {
     float start, end;
@@ -245,10 +318,12 @@ int main(int argc, char **argv)
     srand(time(NULL));
 
     valueTypeTest();
+    collisionAndEdgeCaseValueTest();
 
     printf("\n\n");
 
     referenceTypeTest();
+    clearEdgeCaseTest();
 
     return 0;
 }

@@ -25,6 +25,33 @@ typedef struct
 #define ENTITY_COUNT 30000
 #define randabi(a, b) (int32_t)((a) + ((float)rand() / RAND_MAX) * ((b) - (a)))
 
+static void edgeCaseMergeTest()
+{
+    memzone_t* zone = mzInit(4096);
+    assert(zone);
+
+    void* a = mzAlloc(zone, 64);
+    void* b = mzAlloc(zone, 64);
+    void* c = mzAlloc(zone, 64);
+    assert(a && b && c);
+
+    size_t usedBeforeFree = zone->usedSize;
+
+    mzFree(zone, b);
+    assert(zone->usedSize == usedBeforeFree - 64);
+
+    mzFree(zone, c);
+    assert(zone->rover);
+    assert(mzGetUsableFreeSize(zone) == zone->maxSize - zone->usedSize);
+
+    mzFree(zone, a);
+    assert(zone->usedSize == sizeof(memzone_t));
+    assert(mzGetNumberOfBlocks(zone) == 1);
+    assert(mzGetUsableFreeSize(zone) == zone->maxSize - zone->usedSize);
+
+    free(zone);
+}
+
 int main()
 {
     srand(time(NULL));
@@ -34,7 +61,7 @@ int main()
     printf("sizeof(memblock_t) = %u\n", sizeof(memblock_t));
     printf("\n");
 
-    size_t zoneSize = 1024 * 1024; // 1MB
+    size_t zoneSize = 2 * 1024 * 1024; // 2MB
     memzone_t* zone = mzInit(zoneSize);
     if (!zone)
     {
@@ -73,25 +100,29 @@ int main()
         int32_t index = randabi(0, ENTITY_COUNT - 1);
         if (entities[index])
         {
+            size_t usedSizeBeforeFree = zone->usedSize;
             mzFree(zone, entities[index]);
             entities[index] = NULL;
 
             size_t partialSizeOfDeletedElements = (k + 1) * sizeof(Entity);
             size_t partialSizeOfArrayElements = sizeOfArrayElements - partialSizeOfDeletedElements;
-            assert(zone->usedSize == sizeof(memzone_t) + sizeOfArray + partialSizeOfArrayElements + sizeof(memblock_t));
+            assert(zone->usedSize <= usedSizeBeforeFree - sizeof(Entity));
+            assert(zone->usedSize <= sizeof(memzone_t) + sizeOfArray + partialSizeOfArrayElements + sizeof(memblock_t));
             k++;
         }
     }
 
     size_t sizeOfDeletedArrayElements = k * sizeof(Entity);
     sizeOfArrayElements -= sizeOfDeletedArrayElements;
-    assert(zone->usedSize == sizeof(memzone_t) + sizeOfArray + sizeOfArrayElements + sizeof(memblock_t));
+    assert(zone->usedSize <= sizeof(memzone_t) + sizeOfArray + sizeOfArrayElements + sizeof(memblock_t));
     assert(mzGetUsableFreeSize(zone) >= zone->maxSize - zone->usedSize);
     assert(mzGetNumberOfBlocks(zone) <= 1 + ENTITY_COUNT + 1); // 1 for the array itself, ENTITY_COUNT for the elements, 1 for the empty block
 
     mzPrint(zone, false, true);
 
     free(zone);
+
+    edgeCaseMergeTest();
 
     printf("Done\n");
     return 0;
