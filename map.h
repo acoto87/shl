@@ -92,7 +92,9 @@
         return (hash * hashConstant) >> shift; \
     } \
     \
-    static uint32_t typeName ## __findEmptyBucket(typeName* map, uint32_t index) \
+    static void typeName ## __resize(typeName* map); \
+    \
+    static int32_t typeName ## __findEmptyBucket(typeName* map, uint32_t index) \
     { \
         for(int32_t i = 0; i < map->capacity; i++) \
         { \
@@ -105,7 +107,8 @@
     \
     static void typeName ## __insert(typeName* map, keyType key, valueType value) \
     { \
-        uint32_t hash, index, next; \
+        uint32_t hash, index; \
+        int32_t next; \
         hash = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
         while (map->entries[index].active && map->entries[index].next >= 0) \
@@ -139,6 +142,12 @@
         } \
         \
         next = typeName ## __findEmptyBucket(map, index); \
+        if (next < 0) \
+        { \
+            typeName ## __resize(map); \
+            typeName ## __insert(map, key, value); \
+            return; \
+        } \
         if (index != next) \
             map->entries[index].next = next; \
         \
@@ -274,13 +283,27 @@
             if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
                 valueType value = map->entries[index].value; \
-                \
-                map->entries[prevIndex].next = map->entries[index].next; \
-                map->entries[index].value = map->defaultValue; \
-                map->entries[index].active = false; \
+                int32_t nextIndex = map->entries[index].next; \
+                if (nextIndex >= 0) \
+                { \
+                    map->entries[index] = map->entries[nextIndex]; \
+                    map->entries[nextIndex].value = map->defaultValue; \
+                    map->entries[nextIndex].next = -1; \
+                    map->entries[nextIndex].active = false; \
+                } \
+                else \
+                { \
+                    if (prevIndex != index) \
+                        map->entries[prevIndex].next = -1; \
+                    map->entries[index].value = map->defaultValue; \
+                    map->entries[index].next = -1; \
+                    map->entries[index].active = false; \
+                } \
                 \
                 if (map->freeFn) \
                     map->freeFn(value); \
+                \
+                map->count--; \
                 \
                 break; \
             } \
@@ -293,7 +316,6 @@
             prevIndex = index; \
             index = map->entries[index].next; \
         } \
-        map->count--; \
     } \
     \
     void typeName ## Clear(typeName* map) \
@@ -301,13 +323,15 @@
         if (!map->entries) \
             return; \
         \
-        for(int32_t i = 0; i < map->count; i++) \
+        for(int32_t i = 0; i < map->capacity; i++) \
         { \
             if (map->entries[i].active) \
             { \
                 if (map->freeFn) \
                     map->freeFn(map->entries[i].value); \
                 \
+                map->entries[i].value = map->defaultValue; \
+                map->entries[i].next = -1; \
                 map->entries[i].active = false; \
             } \
         } \

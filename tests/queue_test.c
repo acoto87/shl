@@ -5,8 +5,13 @@
 #include <assert.h>
 
 #include "../queue.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -21,6 +26,40 @@ bool intEquals(const int x, const int y)
 
 shlDeclareQueue(IntQueue, int)
 shlDefineQueue(IntQueue, int)
+
+void edgeCaseValueTypeTest()
+{
+    IntQueueOptions options = {0};
+    options.defaultValue = -1;
+    options.equalsFn = intEquals;
+
+    IntQueue queue;
+    IntQueueInit(&queue, options);
+
+    assert(IntQueuePeek(&queue) == -1);
+    assert(IntQueuePop(&queue) == -1);
+
+    for (int i = 0; i < 6; i++)
+        IntQueuePush(&queue, i);
+    for (int i = 0; i < 4; i++)
+        assert(IntQueuePop(&queue) == i);
+
+    for (int i = 6; i < 18; i++)
+        IntQueuePush(&queue, i);
+
+    for (int i = 4; i < 18; i++)
+        assert(IntQueuePop(&queue) == i);
+
+    assert(IntQueuePop(&queue) == -1);
+    IntQueueFree(&queue);
+
+    IntQueueOptions noEqualsOptions = {0};
+    noEqualsOptions.defaultValue = -1;
+    IntQueueInit(&queue, noEqualsOptions);
+    IntQueuePush(&queue, 1);
+    assert(!IntQueueContains(&queue, 1));
+    IntQueueFree(&queue);
+}
 
 void valueTypeTest()
 {
@@ -101,6 +140,7 @@ void valueTypeTest()
     printf("--- End test 4: push/pop %d objects ---\n", count / 2);
 
     printf("--- End value type tests ---\n");
+    IntQueueFree(&queue);
 }
 
 // reference type test
@@ -123,6 +163,54 @@ void EntryFree(Entry* e)
 
 shlDeclareQueue(EntriesQueue, Entry*)
 shlDefineQueue(EntriesQueue, Entry*)
+
+static int queueFreeCount = 0;
+
+void EntryTrackFree(Entry* e)
+{
+    queueFreeCount++;
+    free(e);
+}
+
+void edgeCaseReferenceTypeTest()
+{
+    EntriesQueueOptions options = {0};
+    options.defaultValue = NULL;
+    options.equalsFn = EntryEquals;
+    options.freeFn = EntryTrackFree;
+
+    EntriesQueue queue;
+    EntriesQueueInit(&queue, options);
+
+    for (int i = 0; i < 6; i++)
+    {
+        Entry *entry = (Entry*)malloc(sizeof(Entry));
+        entry->index = i;
+        entry->name = "entry";
+        EntriesQueuePush(&queue, entry);
+    }
+
+    for (int i = 0; i < 4; i++)
+        EntryFree(EntriesQueuePop(&queue));
+
+    for (int i = 6; i < 12; i++)
+    {
+        Entry *entry = (Entry*)malloc(sizeof(Entry));
+        entry->index = i;
+        entry->name = "entry";
+        EntriesQueuePush(&queue, entry);
+    }
+
+    queueFreeCount = 0;
+    EntriesQueueClear(&queue);
+    assert(queue.count == 0);
+    assert(queue.head == 0);
+    assert(queue.tail == 0);
+    assert(queueFreeCount == 8);
+    assert(EntriesQueuePeek(&queue) == NULL);
+
+    EntriesQueueFree(&queue);
+}
 
 void referenceTypeTest()
 {
@@ -215,18 +303,26 @@ void referenceTypeTest()
     printf("--- End test 4: push/pop %d objects ---\n", count / 2);
 
     printf("--- End reference type tests ---\n");
+    EntriesQueueFree(&queue);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(edgeCaseValueTypeTest);
+    RUN_TEST(referenceTypeTest);
+    RUN_TEST(edgeCaseReferenceTypeTest);
+    return UNITY_END();
 }

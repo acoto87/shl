@@ -195,25 +195,31 @@ void mzFree(memzone_t* zone, void* p)
     }
 
     rover->user = NULL;
+    zone->rover = rover;
 
     zone->usedSize -= rover->size - sizeof(memblock_t);
 
     // merge with next block if empty
-    if (mzIsBlockEmpty(rover->next))
+    if (rover->next != rover && mzIsBlockEmpty(rover->next))
     {
         memblock_t* next = rover->next;
         rover->size += next->size;
         rover->next = next->next;
         rover->next->prev = rover;
+        zone->usedSize -= sizeof(memblock_t);
+        if (zone->rover == next)
+            zone->rover = rover;
     }
 
     // merge with previous if empty
-    if (mzIsBlockEmpty(rover->prev))
+    if (rover->prev != rover && mzIsBlockEmpty(rover->prev))
     {
         memblock_t* prev = rover->prev;
         prev->size += rover->size;
         prev->next = rover->next;
         prev->next->prev = prev;
+        zone->usedSize -= sizeof(memblock_t);
+        zone->rover = prev;
     }
 }
 

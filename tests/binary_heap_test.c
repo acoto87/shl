@@ -6,8 +6,13 @@
 #include <ctype.h>
 
 #include "../binary_heap.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -17,6 +22,11 @@ static float getTime()
 int32_t compareInt(const int a, const int b)
 {
     return a - b;
+}
+
+bool equalsInt(const int a, const int b)
+{
+    return a == b;
 }
 
 shlDeclareBinaryHeap(IntHeap, int)
@@ -30,6 +40,7 @@ void valueTypeTest()
     IntHeapOptions options = {0};
     options.compareFn = compareInt;
     options.defaultValue = 0;
+    options.equalsFn = equalsInt;
     
     IntHeap heap;
     IntHeapInit(&heap, options);
@@ -74,6 +85,46 @@ void valueTypeTest()
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 3:  pop min object ---\n");
+
+    IntHeapFree(&heap);
+}
+
+void edgeCaseValueTypeTest()
+{
+    IntHeapOptions options = {0};
+    options.compareFn = compareInt;
+    options.equalsFn = equalsInt;
+    options.defaultValue = -1;
+
+    IntHeap heap;
+    IntHeapInit(&heap, options);
+
+    assert(IntHeapPeek(&heap) == -1);
+    assert(IntHeapPop(&heap) == -1);
+
+    IntHeapPush(&heap, 10);
+    IntHeapPush(&heap, 20);
+    IntHeapPush(&heap, 30);
+    IntHeapPush(&heap, 40);
+
+    int index = IntHeapIndexOf(&heap, 30);
+    assert(index >= 0);
+    IntHeapUpdate(&heap, index, 5);
+    assert(IntHeapPeek(&heap) == 5);
+
+    index = IntHeapIndexOf(&heap, 10);
+    assert(index >= 0);
+    IntHeapUpdate(&heap, index, 50);
+
+    int previous = IntHeapPop(&heap);
+    while (heap.count > 0)
+    {
+        int current = IntHeapPop(&heap);
+        assert(previous <= current);
+        previous = current;
+    }
+
+    IntHeapFree(&heap);
 }
 
 int32_t compareStrLength(const char* a, const char* b)
@@ -119,7 +170,7 @@ void referenceTypeTest()
     SHeapOptions options = {0};
     options.compareFn = compareStrLength;
     options.defaultValue = NULL;
-    options.freeFn = freeStr;
+    options.freeFn = NULL;
     
     SHeap heap;
     SHeapInit(&heap, options);
@@ -128,10 +179,9 @@ void referenceTypeTest()
     start = getTime();
     for(int i = 0; i < count; i++)
     {
-        int index = rand() % count;
-        int len = strlen(strings[index]);
+        int len = strlen(strings[i]);
         if (len < min) min = len;
-        SHeapPush(&heap, strings[index]);
+        SHeapPush(&heap, strings[i]);
         assert(heap.count == i + 1);
     }
     end = getTime();
@@ -162,22 +212,31 @@ void referenceTypeTest()
             assert(prev <= len);
 
         prev = len;
+        free((void*)str);
     }
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 3:  pop min object ---\n");
+
+    SHeapFree(&heap);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(edgeCaseValueTypeTest);
+    RUN_TEST(referenceTypeTest);
+    return UNITY_END();
 }

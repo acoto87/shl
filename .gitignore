@@ -52,6 +52,10 @@ Mkfile.old
 dkms.conf
 
 out.wav
+/build/
+/nob
+/nob.exe
+/nob.old
 /tests/build/
 /shl.sublime-project
 /shl.sublime-workspace

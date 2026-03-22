@@ -1,40 +1,92 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdint.h>
+#include <string.h>
 
 #define SHL_WAVE_WRITER_IMPLEMENTATION
 #include "../wave_writer.h"
+#include "test_common.h"
 
 #define PI 3.14159265359f
 
-int main(int argc, char **argv)
+static void writeSamples(const char* path, bool stereo)
 {
-    shlWaveFile waveFile;
+    shlWaveFile waveFile = {0};
 
     long sampleRate = 44100;
-    long toneHz = 256;
-    long wavePeriod = sampleRate / toneHz;
-    long bytesPerSample = sizeof (shl_sample_t);
-    long toneVolume = 3000;
+    shl_sample_t buffer[] = { 0, 1000, -1000, 2000 };
 
-    if (!shlWaveInit(&waveFile, sampleRate, "out.wav")) {
-    	printf("Couldn't init wave file");
-    	return -1;
-    }
+    TEST_ASSERT_TRUE(shlWaveInit(&waveFile, sampleRate, path));
+    if (stereo)
+        shlWaveStereo(&waveFile, true);
 
-    long length = sampleRate * 60;
-    shl_sample_t *buffer = (shl_sample_t*) malloc(length * bytesPerSample);
+    TEST_ASSERT_TRUE(shlWaveWrite(&waveFile, buffer, (long)(sizeof(buffer) / sizeof(buffer[0])), 1));
+    TEST_ASSERT_EQUAL_INT(sizeof(buffer) / sizeof(buffer[0]), shlWaveSampleCount(&waveFile));
+    TEST_ASSERT_TRUE(shlWaveFlush(&waveFile, true));
+    TEST_ASSERT_NULL(waveFile._buffer);
+    TEST_ASSERT_NULL(waveFile._file);
+}
 
-    for (int i = 0; i < length; i++)
-    {
-        float t = 2.0f * PI * (float)i / (float)wavePeriod;
-        float sineValue = sinf(t);
-        float sampleValue = sineValue * toneVolume;
-        buffer[i] = (shl_sample_t)sampleValue;
-    }
+void waveWriterCreatesMonoFile(void)
+{
+    const char* path = "wave_test_mono.wav";
+    writeSamples(path, false);
 
-    shlWaveWrite(&waveFile, buffer, length, 1);
-    shlWaveFlush(&waveFile, true);
+    FILE* file = fopen(path, "rb");
+    TEST_ASSERT_NOT_NULL(file);
 
-    return 0;
+    uint8_t header[SHL_WAVE_HEADER_SIZE];
+    TEST_ASSERT_EQUAL_UINT32(sizeof(header), fread(header, 1, sizeof(header), file));
+    fclose(file);
+
+    TEST_ASSERT_EQUAL_MEMORY("RIFF", header, 4);
+    TEST_ASSERT_EQUAL_MEMORY("WAVE", header + 8, 4);
+    TEST_ASSERT_EQUAL_MEMORY("fmt ", header + 12, 4);
+    TEST_ASSERT_EQUAL_UINT8(1, header[22]);
+    TEST_ASSERT_EQUAL_UINT8(16, header[34]);
+
+    remove(path);
+}
+
+void waveWriterCreatesStereoHeader(void)
+{
+    const char* path = "wave_test_stereo.wav";
+    writeSamples(path, true);
+
+    FILE* file = fopen(path, "rb");
+    TEST_ASSERT_NOT_NULL(file);
+
+    uint8_t header[SHL_WAVE_HEADER_SIZE];
+    TEST_ASSERT_EQUAL_UINT32(sizeof(header), fread(header, 1, sizeof(header), file));
+    fclose(file);
+
+    TEST_ASSERT_EQUAL_UINT8(2, header[22]);
+    TEST_ASSERT_EQUAL_UINT8(4, header[32]);
+
+    remove(path);
+}
+
+void waveWriterInitFailsForMissingDirectory(void)
+{
+    shlWaveFile waveFile = {0};
+    TEST_ASSERT_FALSE(shlWaveInit(&waveFile, 44100, "missing-dir/out.wav"));
+    TEST_ASSERT_NULL(waveFile._buffer);
+}
+
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
+{
+    UNITY_BEGIN();
+    RUN_TEST(waveWriterCreatesMonoFile);
+    RUN_TEST(waveWriterCreatesStereoHeader);
+    RUN_TEST(waveWriterInitFailsForMissingDirectory);
+    return UNITY_END();
 }

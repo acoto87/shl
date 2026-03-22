@@ -5,8 +5,13 @@
 #include <assert.h>
 
 #include "../stack.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -21,6 +26,31 @@ bool intEquals(const int x, const int y)
 
 shlDeclareStack(IntStack, int)
 shlDefineStack(IntStack, int)
+
+void edgeCaseValueTypeTest()
+{
+    IntStackOptions options = {0};
+    options.defaultValue = -1;
+    options.equalsFn = intEquals;
+
+    IntStack stack;
+    IntStackInit(&stack, options);
+
+    assert(IntStackPeek(&stack) == -1);
+    assert(IntStackPop(&stack) == -1);
+
+    for (int i = 0; i < count * 2; i++)
+        IntStackPush(&stack, i);
+
+    for (int i = count * 2 - 1; i >= count; i--)
+        assert(IntStackPop(&stack) == i);
+
+    IntStackClear(&stack);
+    assert(stack.count == 0);
+    assert(IntStackPop(&stack) == -1);
+
+    IntStackFree(&stack);
+}
 
 void valueTypeTest()
 {
@@ -76,6 +106,7 @@ void valueTypeTest()
     printf("--- End test 3: pop %d objects ---\n", count / 2);
 
     printf("--- End value type tests ---\n");
+    IntStackFree(&stack);
 }
 
 // reference type test
@@ -98,6 +129,41 @@ void EntryFree(Entry* e)
 
 shlDeclareStack(EntriesStack, Entry*)
 shlDefineStack(EntriesStack, Entry*)
+
+static int stackFreeCount = 0;
+
+void EntryTrackFree(Entry* e)
+{
+    stackFreeCount++;
+    free(e);
+}
+
+void edgeCaseReferenceTypeTest()
+{
+    EntriesStackOptions options = {0};
+    options.defaultValue = NULL;
+    options.equalsFn = EntryEquals;
+    options.freeFn = EntryTrackFree;
+
+    EntriesStack stack;
+    EntriesStackInit(&stack, options);
+
+    for (int i = 0; i < 32; i++)
+    {
+        Entry *entry = (Entry*)malloc(sizeof(Entry));
+        entry->index = i;
+        entry->name = "entry";
+        EntriesStackPush(&stack, entry);
+    }
+
+    stackFreeCount = 0;
+    EntriesStackClear(&stack);
+    assert(stack.count == 0);
+    assert(stackFreeCount == 32);
+    assert(EntriesStackPeek(&stack) == NULL);
+
+    EntriesStackFree(&stack);
+}
 
 void referenceTypeTest()
 {
@@ -161,18 +227,26 @@ void referenceTypeTest()
     printf("--- End test 3: pop %d objects ---\n", count / 2);
 
     printf("--- End reference type tests ---\n");
+    EntriesStackFree(&stack);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(edgeCaseValueTypeTest);
+    RUN_TEST(referenceTypeTest);
+    RUN_TEST(edgeCaseReferenceTypeTest);
+    return UNITY_END();
 }

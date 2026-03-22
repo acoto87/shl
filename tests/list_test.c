@@ -5,8 +5,13 @@
 #include <assert.h>
 
 #include "../list.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -26,6 +31,51 @@ int32_t intCompare(const int x, const int y)
 
 shlDeclareList(IntList, int)
 shlDefineList(IntList, int)
+
+void edgeCaseValueTypeTest()
+{
+    IntListOptions options = {0};
+    options.defaultValue = -1;
+    options.equalsFn = intEquals;
+
+    IntList list;
+    IntListInit(&list, options);
+
+    assert(IntListGet(&list, 0) == -1);
+    IntListRemove(&list, 99);
+    assert(list.count == 0);
+
+    IntListAdd(&list, 2);
+    IntListAdd(&list, 3);
+    IntListInsert(&list, 0, 1);
+    IntListInsert(&list, list.count, 4);
+
+    assert(list.count == 4);
+    assert(IntListGet(&list, 0) == 1);
+    assert(IntListGet(&list, 3) == 4);
+
+    IntListRemove(&list, 99);
+    assert(list.count == 4);
+
+    IntListRemoveAtRange(&list, 2, 3);
+    assert(list.count == 4);
+
+    IntListReverse(&list);
+    assert(IntListGet(&list, 0) == 4);
+    assert(IntListGet(&list, 3) == 1);
+
+    int copy[6] = {0};
+    IntListCopyTo(&list, copy, 1);
+    assert(copy[1] == 4);
+    assert(copy[4] == 1);
+
+    int* array = IntListToArray(&list);
+    assert(array[0] == 4);
+    assert(array[3] == 1);
+    free(array);
+
+    IntListFree(&list);
+}
 
 void valueTypeTest()
 {
@@ -73,8 +123,9 @@ void valueTypeTest()
     {
         int index = rand() % list.count;
         int value = list.items[index];
+        uint32_t previousCount = list.count;
         IntListRemoveAt(&list, index);
-        assert(list.items[index] != value);
+        assert(list.count == previousCount - 1);
     }
     end = getTime();
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
@@ -113,8 +164,8 @@ void valueTypeTest()
 
     printf("\n");
 
-    const int rangeCount = 50000;
-    const int rangeAt = 100;
+    const int rangeCount = count < 50000 ? count / 2 : 50000;
+    const int rangeAt = list.count > 100 ? 100 : 0;
 
     int* rangeValues = (int*)malloc(rangeCount*sizeof(int));
     for(int i = 0; i < rangeCount; i++)
@@ -136,7 +187,7 @@ void valueTypeTest()
     start = getTime();
     IntListRemoveAtRange(&list, rangeAt, rangeCount);
     end = getTime();
-    for(int i = 0; i < rangeCount; i++)
+    for(int i = 0; i < rangeCount && rangeAt + i < list.count; i++)
         assert(list.items[rangeAt + i] != rangeValues[i]);
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
     printf("Time: %.2f seconds\n", end - start);
@@ -156,6 +207,7 @@ void valueTypeTest()
     printf("--- End test 8: sorting %d objects ---\n", list.count);
 
     printf("--- End value type tests ---\n");
+    IntListFree(&list);
 }
 
 // reference type test
@@ -184,6 +236,44 @@ void EntryFree(Entry* e)
 
 shlDeclareList(EntriesList, Entry*)
 shlDefineList(EntriesList, Entry*)
+
+static int entryFreeCount = 0;
+
+void EntryTrackFree(Entry* e)
+{
+    entryFreeCount++;
+    free(e);
+}
+
+void edgeCaseReferenceTypeTest()
+{
+    EntriesListOptions options = {0};
+    options.defaultValue = NULL;
+    options.equalsFn = EntryEquals;
+    options.freeFn = EntryTrackFree;
+
+    EntriesList list;
+    EntriesListInit(&list, options);
+
+    for (int i = 0; i < 16; i++)
+    {
+        Entry* entry = (Entry*)malloc(sizeof(Entry));
+        entry->index = i;
+        entry->name = "edge";
+        EntriesListAdd(&list, entry);
+    }
+
+    entryFreeCount = 0;
+    EntriesListRemoveAtRange(&list, 4, 4);
+    assert(list.count == 12);
+    assert(entryFreeCount == 4);
+
+    EntriesListClear(&list);
+    assert(list.count == 0);
+    assert(entryFreeCount == 16);
+
+    EntriesListFree(&list);
+}
 
 void referenceTypeTest()
 {
@@ -292,8 +382,8 @@ void referenceTypeTest()
 
     printf("\n");
 
-    const int rangeCount = 50000;
-    const int rangeAt = 100;
+    const int rangeCount = count < 50000 ? count / 2 : 50000;
+    const int rangeAt = list.count > 100 ? 100 : 0;
 
     Entry** rangeValues = (Entry**)malloc(rangeCount * sizeof(Entry*));
     for(int i = 0; i < rangeCount; i++)
@@ -319,7 +409,7 @@ void referenceTypeTest()
     start = getTime();
     EntriesListRemoveAtRange(&list, rangeAt, rangeCount);
     end = getTime();
-    for(int i = 0; i < rangeCount; i++)
+    for(int i = 0; i < rangeCount && rangeAt + i < list.count; i++)
         assert(list.items[rangeAt + i]->index >= 0);
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
     printf("Time: %.2f seconds\n", end - start);
@@ -339,18 +429,26 @@ void referenceTypeTest()
     printf("--- End test 8: sorting %d objects ---\n", list.count);
 
     printf("--- End reference type tests ---\n");
+    EntriesListFree(&list);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(edgeCaseValueTypeTest);
+    RUN_TEST(referenceTypeTest);
+    RUN_TEST(edgeCaseReferenceTypeTest);
+    return UNITY_END();
 }

@@ -359,7 +359,11 @@ bool flicOpen(Flic* flic, const char* filename)
 
     uint16_t magic = flic__read16(flic->file);
     if (magic != FLI_MAGIC_NUMBER && magic != FLC_MAGIC_NUMBER)
+    {
+        fclose(flic->file);
+        flic->file = NULL;
         return false;
+    }
 
     flic->frames = flic__read16(flic->file);
     flic->width  = flic__read16(flic->file);
@@ -388,7 +392,7 @@ bool flicOpen(Flic* flic, const char* filename)
     }
 
     if (flic->width == 0) flic->width = 320;
-    if (flic->height == 0) flic->width = 200;
+    if (flic->height == 0) flic->height = 200;
 
     // Skip padding
     flic__seek(flic->file, 128);
@@ -397,7 +401,11 @@ bool flicOpen(Flic* flic, const char* filename)
 
 void flicClose(Flic* flic)
 {
-    fclose(flic->file);
+    if (flic->file)
+    {
+        fclose(flic->file);
+        flic->file = NULL;
+    }
 }
 
 bool flicReadFrame(Flic* flic, FlicFrame* frame)
