@@ -81,7 +81,7 @@
     \
     static int32_t typeName ## __findEmptyBucket(typeName* set, uint32_t index) \
     { \
-        for(int32_t i = 0; i < set->capacity; i++) \
+        for(uint32_t i = 0; i < set->capacity; i++) \
         { \
             if (!set->entries[(index + i) % set->capacity].active) \
                 return (index + i) % set->capacity; \
@@ -100,7 +100,7 @@
         set->entries = (typeName ## __Entry__*)calloc(set->capacity, sizeof(typeName ## __Entry__)); \
         set->count = 0; \
         \
-        for(int32_t i = 0; i < oldCapacity; i++) \
+        for(uint32_t i = 0; i < oldCapacity; i++) \
         { \
             if(old[i].active) \
                 typeName ## Add(set, old[i].item); \
@@ -161,7 +161,7 @@
             typeName ## __resize(set); \
             return typeName ## Add(set, item); \
         } \
-        if (index != next) \
+        if (index != (uint32_t)next) \
             set->entries[index].next = next; \
         \
         set->entries[next].active = true; \
@@ -250,7 +250,7 @@
         if (!set->entries) \
             return; \
         \
-        for(int32_t i = 0; i < set->capacity; i++) \
+        for(uint32_t i = 0; i < set->capacity; i++) \
         { \
             if (set->entries[i].active) \
             { \

@@ -77,7 +77,7 @@
         uint32_t oldCapacity = list->capacity; \
         \
         list->capacity = oldCapacity << 1; \
-        if (list->capacity < minSize) \
+        if (list->capacity < (uint32_t)minSize) \
             list->capacity = minSize; \
         \
         list->items = (itemType *)realloc(list->items, list->capacity * sizeof(itemType)); \
@@ -137,7 +137,7 @@
         if (!list->items) \
             return; \
         \
-        if (index < 0 || index > list->count) \
+        if (index < 0 || (uint32_t)index > list->count) \
             return; \
         \
         if (list->count + count >= list->capacity) \
@@ -171,10 +171,10 @@
         if (!list->equalsFn) \
             return -1; \
         \
-        for(int32_t i = 0; i < list->count; i++) \
+        for(uint32_t i = 0; i < list->count; i++) \
         { \
             if (list->equalsFn(list->items[i], value)) \
-                return i; \
+                return (int32_t)i; \
         } \
         \
         return -1; \
@@ -190,7 +190,7 @@
         if (!list->items) \
             return list->defaultValue; \
         \
-        if (index < 0 || index >= list->count) \
+        if (index < 0 || (uint32_t)index >= list->count) \
             return list->defaultValue; \
         \
         return list->items[index]; \
@@ -201,7 +201,7 @@
         if (!list->items) \
             return; \
         \
-        if (index < 0 || index >= list->count) \
+        if (index < 0 || (uint32_t)index >= list->count) \
             return; \
         \
         itemType currentValue = list->items[index]; \
@@ -216,10 +216,10 @@
         if (!list->items) \
             return; \
         \
-        if (index < 0 || index >= list->count) \
+        if (index < 0 || (uint32_t)index >= list->count) \
             return; \
         \
-        if (index + count > list->count) \
+        if ((uint32_t)(index + count) > list->count) \
             return; \
         \
         if (list->freeFn) \
@@ -251,7 +251,7 @@
         \
         if (list->freeFn) \
         { \
-            for(int32_t i = 0; i < list->count; i++) \
+            for(uint32_t i = 0; i < list->count; i++) \
                 list->freeFn(list->items[i]); \
         } \
         \

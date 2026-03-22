@@ -96,7 +96,7 @@
     \
     static int32_t typeName ## __findEmptyBucket(typeName* map, uint32_t index) \
     { \
-        for(int32_t i = 0; i < map->capacity; i++) \
+        for(uint32_t i = 0; i < map->capacity; i++) \
         { \
             if (!map->entries[(index + i) % map->capacity].active) \
                 return (index + i) % map->capacity; \
@@ -148,7 +148,7 @@
             typeName ## __insert(map, key, value); \
             return; \
         } \
-        if (index != next) \
+        if (index != (uint32_t)next) \
             map->entries[index].next = next; \
         \
         map->entries[next].active = true; \
@@ -169,7 +169,7 @@
         map->entries = (typeName ## __Entry__*)calloc(map->capacity, sizeof(typeName ## __Entry__)); \
         map->count = 0; \
         \
-        for(int32_t i = 0; i < oldCapacity; i++) \
+        for(uint32_t i = 0; i < oldCapacity; i++) \
         { \
             if(old[i].active) \
                 typeName ## __insert(map, old[i].key, old[i].value); \
@@ -323,7 +323,7 @@
         if (!map->entries) \
             return; \
         \
-        for(int32_t i = 0; i < map->capacity; i++) \
+        for(uint32_t i = 0; i < map->capacity; i++) \
         { \
             if (map->entries[i].active) \
             { \

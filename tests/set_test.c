@@ -92,7 +92,7 @@ void valueTypeTest()
     {
         int x = i;
         assert(IntSetAdd(&set, x));
-        assert(set.count == i + 1);
+        assert(set.count == (uint32_t)(i + 1));
     }
     end = getTime();
     printf("Set count and capacity: (%d, %d)\n", set.count, set.capacity);
@@ -240,7 +240,7 @@ void referenceTypeTest()
     {
         char *str = strings[i];
         assert(SSetAdd(&set, str));
-        assert(set.count == i + 1);
+        assert(set.count == (uint32_t)(i + 1));
     }
     end = getTime();
     printf("Set count and capacity: (%d, %d)\n", set.count, set.capacity);

@@ -86,7 +86,7 @@ memzone_t* mzInit(size_t maxSize)
 {
     if (maxSize < sizeof(memzone_t))
     {
-        fprintf(stderr, "You need to allocate memory for at least %u bytes.\n", sizeof(memzone_t));
+        fprintf(stderr, "You need to allocate memory for at least %zu bytes.\n", sizeof(memzone_t));
         return NULL;
     }
 
@@ -94,7 +94,7 @@ memzone_t* mzInit(size_t maxSize)
     memzone_t* zone = (memzone_t*)rawZone;
     if (!zone)
     {
-        fprintf(stderr, "The system couldn't allocate memory for %u bytes.\n", maxSize);
+        fprintf(stderr, "The system couldn't allocate memory for %zu bytes.\n", maxSize);
         return NULL;
     }
 
@@ -118,7 +118,7 @@ void* mzAlloc(memzone_t* zone, size_t size)
     size_t sizeToAlloc = size + sizeof(memblock_t);
     if (sizeToAlloc > zone->maxSize - zone->usedSize)
     {
-        fprintf(stderr, "Memory overflow: There is no more memory to alloc size %u bytes.\n", size);
+        fprintf(stderr, "Memory overflow: There is no more memory to alloc size %zu bytes.\n", size);
         return NULL;
     }
 
@@ -132,7 +132,7 @@ void* mzAlloc(memzone_t* zone, size_t size)
             // find any block to alloc the memory return null, maybe a defrag?
             if (rover == zone->rover)
             {
-                fprintf(stderr, "There is total free memory to alloc size %u bytes but there isn't a block big enough.\n", size);
+                fprintf(stderr, "There is total free memory to alloc size %zu bytes but there isn't a block big enough.\n", size);
                 return NULL;
             }
 
@@ -336,11 +336,11 @@ float mzGetFragPercentage(memzone_t* zone)
 
 void mzPrint(memzone_t* zone, bool printBlocks, bool printMap)
 {
-    printf("Zone: %p -> %p\n", zone, __pointerOffset(memzone_t, zone, zone->maxSize));
-    printf("  rover: %p\n", zone->rover);
-    printf("  maxSize: %u\n", zone->maxSize);
-    printf("  usedSize: %u\n", zone->usedSize);
-    printf("  freeSize: %d\n", mzGetUsableFreeSize(zone));
+    printf("Zone: %p -> %p\n", (void*)zone, (void*)__pointerOffset(memzone_t, zone, zone->maxSize));
+    printf("  rover: %p\n", (void*)zone->rover);
+    printf("  maxSize: %zu\n", zone->maxSize);
+    printf("  usedSize: %zu\n", zone->usedSize);
+    printf("  freeSize: %zu\n", mzGetUsableFreeSize(zone));
     printf("  numberOfBlocks: %d\n", mzGetNumberOfBlocks(zone));
     printf("  fragmentation: %.2f%%\n", mzGetFragPercentage(zone));
 
@@ -351,12 +351,12 @@ void mzPrint(memzone_t* zone, bool printBlocks, bool printMap)
         do
         {
             printf("    ----------\n");
-            printf("    id: %p\n", rover);
-            printf("    size: %u\n", rover->size);
+            printf("    id: %p\n", (void*)rover);
+            printf("    size: %zu\n", rover->size);
             printf("    type: %u\n", rover->type);
             printf("    user: %p\n", rover->user);
-            printf("    prev: %p\n", rover->prev);
-            printf("    next: %p\n", rover->next);
+            printf("    prev: %p\n", (void*)rover->prev);
+            printf("    next: %p\n", (void*)rover->next);
             printf("    ----------\n");
 
             rover = rover->next;

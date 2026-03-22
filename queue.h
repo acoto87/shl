@@ -149,7 +149,7 @@
         if (!queue->equalsFn) \
             return false; \
         \
-        for(int32_t i = 0; i < queue->count; i++) \
+        for(uint32_t i = 0; i < queue->count; i++) \
         { \
             if (queue->equalsFn(queue->items[(queue->head + i) % queue->capacity], value)) \
                 return true; \
@@ -164,7 +164,7 @@
         \
         if (queue->freeFn) \
         { \
-            for(int32_t i = 0; i < queue->count; i++) \
+            for(uint32_t i = 0; i < queue->count; i++) \
             { \
                 uint32_t index = (queue->head + i) % queue->capacity; \
                 queue->freeFn(queue->items[index]); \

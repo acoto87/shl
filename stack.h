@@ -127,7 +127,7 @@
         if (!stack->equalsFn) \
             return false; \
         \
-        for(int32_t i = 0; i < stack->count; i++) \
+        for(uint32_t i = 0; i < stack->count; i++) \
         { \
             if (stack->equalsFn(stack->items[i], value)) \
                 return true; \
@@ -143,7 +143,7 @@
         \
         if (stack->freeFn) \
         { \
-            for(int32_t i = 0; i < stack->count; i++) \
+            for(uint32_t i = 0; i < stack->count; i++) \
                 stack->freeFn(stack->items[i]); \
         } \
         \

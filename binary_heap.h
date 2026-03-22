@@ -64,7 +64,7 @@
     void typeName ## Clear(typeName* heap);
 
 #define shlDefineBinaryHeap(typeName, itemType) \
-    void typeName ## __resize(typeName* heap, int32_t minSize) \
+    void typeName ## __resize(typeName* heap, uint32_t minSize) \
     { \
         heap->capacity = heap->capacity << 1; \
         if (heap->capacity < minSize) \
@@ -87,20 +87,20 @@
         } \
     } \
     \
-    void typeName ## __heapDown(typeName* heap, int32_t index) \
+    void typeName ## __heapDown(typeName* heap, uint32_t index) \
     { \
         while (index < heap->count) \
         { \
             itemType value = heap->items[index]; \
             \
-            int32_t leftIndex = 2 * index + 1; \
+            uint32_t leftIndex = 2 * index + 1; \
             if (leftIndex >= heap->count) \
                 break; \
             \
-            int32_t minIndex = leftIndex; \
+            uint32_t minIndex = leftIndex; \
             itemType minValue = heap->items[minIndex]; \
             \
-            int32_t rightIndex = 2 * index + 2; \
+            uint32_t rightIndex = 2 * index + 2; \
             if (rightIndex < heap->count) \
             { \
                 itemType rightValue = heap->items[rightIndex]; \
@@ -152,7 +152,7 @@
         if (heap->count + 1 >= heap->capacity) \
             typeName ## __resize(heap, heap->count + 1); \
          \
-        int32_t index = heap->count; \
+        uint32_t index = heap->count; \
         heap->items[index] = value; \
         \
         typeName ## __heapUp(heap, index); \
@@ -195,10 +195,10 @@
         if (!heap->equalsFn) \
             return -1; \
         \
-        for(int32_t i = 0; i < heap->count; i++) \
+        for(uint32_t i = 0; i < heap->count; i++) \
         { \
             if (heap->equalsFn(heap->items[i], value)) \
-                return i; \
+                return (int32_t)i; \
         } \
         \
         return -1; \
@@ -217,7 +217,7 @@
         if (!heap->compareFn) \
             return; \
         \
-        if (index < 0 || index >= heap->count) \
+        if (index < 0 || (uint32_t)index >= heap->count) \
             return; \
         \
         itemType oldValue = heap->items[index]; \
@@ -226,7 +226,7 @@
         if (cmpValue < 0) \
             typeName ## __heapUp(heap, index); \
         else if (cmpValue > 0) \
-            typeName ## __heapDown(heap, index); \
+            typeName ## __heapDown(heap, (uint32_t)index); \
     } \
     \
     void typeName ## Clear(typeName* heap) \
@@ -236,7 +236,7 @@
         \
         if (heap->freeFn) \
         { \
-            for(int32_t i = 0; i < heap->count; i++) \
+            for(uint32_t i = 0; i < heap->count; i++) \
                 heap->freeFn(heap->items[i]); \
         } \
         \

@@ -52,7 +52,7 @@ void valueTypeTest()
         int x = rand() % count;
         if (x < min) min = x;
         IntHeapPush(&heap, x);
-        assert(heap.count == i + 1);
+        assert(heap.count == (uint32_t)(i + 1));
     }
     end = getTime();
     printf("BinaryHeap count and capacity: (%d, %d)\n", heap.count, heap.capacity);
@@ -182,7 +182,7 @@ void referenceTypeTest()
         int len = strlen(strings[i]);
         if (len < min) min = len;
         SHeapPush(&heap, strings[i]);
-        assert(heap.count == i + 1);
+        assert(heap.count == (uint32_t)(i + 1));
     }
     end = getTime();
     printf("BinaryHeap count and capacity: (%d, %d)\n", heap.count, heap.capacity);
@@ -194,7 +194,7 @@ void referenceTypeTest()
     printf("--- Start test 2: peek min object ---\n");
     start = getTime();
     const char* peek = SHeapPeek(&heap);
-    assert(strlen(peek) == min);
+        assert(strlen(peek) == (size_t)min);
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 2:  peek min object ---\n");
