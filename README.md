@@ -19,3 +19,14 @@ See the tests/*_tests.c files to see how to use them.
 These are work in progress, and I'm using it in my games, so use at your own risk.
 
 Any tips/suggestions are welcome.
+
+## Building and running tests
+
+The test suite is built with [nob](https://github.com/tsoding/nob.h) and uses the Unity C test framework.
+
+```sh
+cc -std=c99 -Wall -Wextra nob.c -o nob
+./nob test
+./nob asan
+./nob valgrind
+```

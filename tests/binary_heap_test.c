@@ -6,8 +6,13 @@
 #include <ctype.h>
 
 #include "../binary_heap.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -80,6 +85,8 @@ void valueTypeTest()
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 3:  pop min object ---\n");
+
+    IntHeapFree(&heap);
 }
 
 void edgeCaseValueTypeTest()
@@ -163,7 +170,7 @@ void referenceTypeTest()
     SHeapOptions options = {0};
     options.compareFn = compareStrLength;
     options.defaultValue = NULL;
-    options.freeFn = freeStr;
+    options.freeFn = NULL;
     
     SHeap heap;
     SHeapInit(&heap, options);
@@ -172,10 +179,9 @@ void referenceTypeTest()
     start = getTime();
     for(int i = 0; i < count; i++)
     {
-        int index = rand() % count;
-        int len = strlen(strings[index]);
+        int len = strlen(strings[i]);
         if (len < min) min = len;
-        SHeapPush(&heap, strings[index]);
+        SHeapPush(&heap, strings[i]);
         assert(heap.count == i + 1);
     }
     end = getTime();
@@ -206,23 +212,31 @@ void referenceTypeTest()
             assert(prev <= len);
 
         prev = len;
+        free((void*)str);
     }
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 3:  pop min object ---\n");
+
+    SHeapFree(&heap);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-    edgeCaseValueTypeTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(edgeCaseValueTypeTest);
+    RUN_TEST(referenceTypeTest);
+    return UNITY_END();
 }

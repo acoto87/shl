@@ -6,6 +6,7 @@
 
 #define SHL_MEMORY_BUFFER_IMPLEMENTATION
 #include "../memory_buffer.h"
+#include "test_common.h"
 
 const char* BufferTestStr = "Buffer test";
 const char* EndBlockStr = "End block";
@@ -55,7 +56,7 @@ void testReading(uint8_t* data, size_t length)
 
     assert(buffer.length == length);
 
-    char header[12];
+    char header[12] = {0};
     assert(mbReadString(&buffer, header, 11));
     assert(strcmp(header, BufferTestStr) == 0);
     assert(mbPosition(&buffer) == 11);
@@ -86,7 +87,7 @@ void testScanTo(uint8_t* data, size_t length)
 
     assert(mbScanTo(&buffer, "End block", 9));
 
-    char header[10];
+    char header[10] = {0};
     assert(mbReadString(&buffer, header, 9));
     assert(strcmp(header, EndBlockStr) == 0);
     assert(mbIsEOF(&buffer));
@@ -98,7 +99,7 @@ void testSeek(uint8_t* data, size_t length)
     mbInitFromMemory(&buffer, data, length);
 
     assert(mbSeek(&buffer, 91));
-    char header[10];
+    char header[10] = {0};
     assert(mbReadString(&buffer, header, 9));
     assert(strcmp(header, EndBlockStr) == 0);
     assert(mbIsEOF(&buffer));
@@ -151,62 +152,61 @@ void testSkipBoundaries(uint8_t* data, size_t length)
     assert(!mbSkip(&buffer, -12));
 }
 
-int main(int argc, char **argv)
+void memoryBufferWriteTest(void)
 {
-    float start, end;
-
-    printf("--- Start writing test ---\n");
-    start = getTime();
-    size_t length;
+    size_t length = 0;
     uint8_t* data = testWriting(&length);
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End writing test ---\n");
+    free(data);
+}
 
-    printf("\n");
-
-    printf("--- Start reading test ---\n");
-    start = getTime();
+void memoryBufferReadTest(void)
+{
+    size_t length = 0;
+    uint8_t* data = testWriting(&length);
     testReading(data, length);
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End reading test ---\n");
+    free(data);
+}
 
-    printf("\n");
-
-    printf("--- Start scanTo test ---\n");
-    start = getTime();
+void memoryBufferScanToTest(void)
+{
+    size_t length = 0;
+    uint8_t* data = testWriting(&length);
     testScanTo(data, length);
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End scanTo test ---\n");
+    free(data);
+}
 
-    printf("\n");
-
-    printf("--- Start seek test ---\n");
-    start = getTime();
+void memoryBufferSeekTest(void)
+{
+    size_t length = 0;
+    uint8_t* data = testWriting(&length);
     testSeek(data, length);
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End seek test ---\n");
+    free(data);
+}
 
-    printf("\n");
-
-    printf("--- Start 24-bit test ---\n");
-    start = getTime();
-    test24BitIO();
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End 24-bit test ---\n");
-
-    printf("\n");
-
-    printf("--- Start skip boundary test ---\n");
-    start = getTime();
+void memoryBufferSkipBoundaryTest(void)
+{
+    size_t length = 0;
+    uint8_t* data = testWriting(&length);
     testSkipBoundaries(data, length);
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End skip boundary test ---\n");
+    free(data);
+}
 
-    return 0;
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
+{
+    UNITY_BEGIN();
+    RUN_TEST(memoryBufferWriteTest);
+    RUN_TEST(memoryBufferReadTest);
+    RUN_TEST(memoryBufferScanToTest);
+    RUN_TEST(memoryBufferSeekTest);
+    RUN_TEST(test24BitIO);
+    RUN_TEST(memoryBufferSkipBoundaryTest);
+    return UNITY_END();
 }

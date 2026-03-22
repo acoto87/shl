@@ -5,6 +5,7 @@
 #include <assert.h>
 
 #include "../array.h"
+#include "test_common.h"
 
 static const int32_t N = 10;
 static const int32_t M = 10;
@@ -128,17 +129,22 @@ void largeArrayTest()
     floatFreeArray(arr);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-    largeArrayTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(largeArrayTest);
+    RUN_TEST(referenceTypeTest);
+    return UNITY_END();
 }

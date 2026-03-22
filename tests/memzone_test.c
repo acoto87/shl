@@ -6,6 +6,7 @@
 
 #define SHL_MEMORY_ZONE_IMPLEMENTATION
 #include "../memzone.h"
+#include "test_common.h"
 
 typedef enum
 {
@@ -22,7 +23,11 @@ typedef struct
     EntityType type;
 } Entity;
 
+#if defined(SHL_LEAK_CHECK)
+#define ENTITY_COUNT 5000
+#else
 #define ENTITY_COUNT 30000
+#endif
 #define randabi(a, b) (int32_t)((a) + ((float)rand() / RAND_MAX) * ((b) - (a)))
 
 static void edgeCaseMergeTest()
@@ -52,7 +57,7 @@ static void edgeCaseMergeTest()
     free(zone);
 }
 
-int main()
+void largeAllocationTest(void)
 {
     srand(time(NULL));
 
@@ -124,5 +129,20 @@ int main()
     edgeCaseMergeTest();
 
     printf("Done\n");
-    return 0;
+}
+
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
+{
+    UNITY_BEGIN();
+    RUN_TEST(largeAllocationTest);
+    RUN_TEST(edgeCaseMergeTest);
+    return UNITY_END();
 }

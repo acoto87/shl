@@ -6,8 +6,13 @@
 #include <ctype.h>
 
 #include "../map.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -139,6 +144,8 @@ void valueTypeTest()
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 4: remove %d objects ---\n", count/2);
+
+    IntMapFree(&map);
 }
 
 // reference type tests
@@ -310,20 +317,29 @@ void referenceTypeTest()
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 4: remove %d objects ---\n", count/2);
+
+    SSMapFree(&map);
+    for(int i = 0; i < count; i++)
+        free(strings[i]);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-    collisionAndEdgeCaseValueTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-    clearEdgeCaseTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(collisionAndEdgeCaseValueTest);
+    RUN_TEST(referenceTypeTest);
+    RUN_TEST(clearEdgeCaseTest);
+    return UNITY_END();
 }

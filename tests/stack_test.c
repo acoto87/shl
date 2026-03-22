@@ -5,8 +5,13 @@
 #include <assert.h>
 
 #include "../stack.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -101,6 +106,7 @@ void valueTypeTest()
     printf("--- End test 3: pop %d objects ---\n", count / 2);
 
     printf("--- End value type tests ---\n");
+    IntStackFree(&stack);
 }
 
 // reference type test
@@ -221,20 +227,26 @@ void referenceTypeTest()
     printf("--- End test 3: pop %d objects ---\n", count / 2);
 
     printf("--- End reference type tests ---\n");
+    EntriesStackFree(&stack);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-    edgeCaseValueTypeTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-    edgeCaseReferenceTypeTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(edgeCaseValueTypeTest);
+    RUN_TEST(referenceTypeTest);
+    RUN_TEST(edgeCaseReferenceTypeTest);
+    return UNITY_END();
 }

@@ -7,8 +7,13 @@
 #include <ctype.h>
 
 #include "../set.h"
+#include "test_common.h"
 
+#if defined(SHL_LEAK_CHECK)
+static const int32_t count = 5000;
+#else
 static const int32_t count = 100000;
+#endif
 
 static float getTime()
 {
@@ -135,6 +140,8 @@ void valueTypeTest()
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 4: remove %d objects ---\n", count/2);
+
+    IntSetFree(&set);
 }
 
 // reference type tests
@@ -274,27 +281,38 @@ void referenceTypeTest()
     start = getTime();
     for(int i = 0; i < count/2; i++)
     {
-        int index = rand() % set.count;
-        SSetRemove(&set, strings[index]);
-        assert(!SSetContains(&set, strings[index]));
+        char* key = strings[i];
+        char* probe = (char*)calloc(strlen(key) + 1, sizeof(char));
+        strcpy(probe, key);
+        SSetRemove(&set, key);
+        assert(!SSetContains(&set, probe));
+        strings[i] = NULL;
+        free(probe);
     }
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 4: remove %d objects ---\n", count/2);
+
+    SSetFree(&set);
 }
 
-int main(int argc, char **argv)
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
 {
     /* initialize random seed: */
     srand(time(NULL));
 
-    valueTypeTest();
-    collisionAndEdgeCaseValueTest();
-
-    printf("\n\n");
-
-    referenceTypeTest();
-    clearEdgeCaseTest();
-
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(valueTypeTest);
+    RUN_TEST(collisionAndEdgeCaseValueTest);
+    RUN_TEST(referenceTypeTest);
+    RUN_TEST(clearEdgeCaseTest);
+    return UNITY_END();
 }

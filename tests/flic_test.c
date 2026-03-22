@@ -1,50 +1,93 @@
 #include <stdio.h>
 #include <stdint.h>
-
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "stb_image_resize.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
+#include <stdlib.h>
+#include <string.h>
 
 #define SHL_FLIC_IMPLEMENTATION
 #include "../flic.h"
+#include "test_common.h"
 
-int main(int argc, char **argv)
+static void writeUInt16LE(FILE* file, uint16_t value)
 {
-    if (argc == 1)
-    {
-        printf("Need path to FLIC file\n");
-        return -1;
-    }
+    fputc(value & 0xFF, file);
+    fputc((value >> 8) & 0xFF, file);
+}
 
-    const char* fileName = argv[1];
+static void writeUInt32LE(FILE* file, uint32_t value)
+{
+    fputc(value & 0xFF, file);
+    fputc((value >> 8) & 0xFF, file);
+    fputc((value >> 16) & 0xFF, file);
+    fputc((value >> 24) & 0xFF, file);
+}
+
+static void writeMinimalFlic(const char* path, uint16_t magic, uint16_t width, uint16_t height, uint32_t speed)
+{
+    FILE* file = fopen(path, "wb");
+    TEST_ASSERT_NOT_NULL(file);
+
+    writeUInt32LE(file, 128);
+    writeUInt16LE(file, magic);
+    writeUInt16LE(file, 1);
+    writeUInt16LE(file, width);
+    writeUInt16LE(file, height);
+    writeUInt16LE(file, 8);
+    writeUInt16LE(file, 0);
+    writeUInt32LE(file, speed);
+
+    for (int i = 20; i < 128; i++)
+        fputc(0, file);
+
+    fclose(file);
+}
+
+void flicOpenFailsForMissingFile(void)
+{
+    Flic flic;
+    TEST_ASSERT_FALSE(flicOpen(&flic, "missing-file.fli"));
+}
+
+void flicOpenFailsForInvalidMagic(void)
+{
+    const char* path = "invalid_magic.fli";
+    writeMinimalFlic(path, 0x0000, 10, 10, 1);
 
     Flic flic;
-    if (!flicOpen(&flic, fileName))
-    {
-        printf("Could not open the FLIC file\n");
-        return -1;
-    }
+    TEST_ASSERT_FALSE(flicOpen(&flic, path));
+    TEST_ASSERT_NULL(flic.file);
 
-    // accumulative image data
-    uint8_t* imageData = (uint8_t*)calloc(flic.width * flic.height * 3, sizeof(uint8_t));
+    remove(path);
+}
 
-    for (int i = 0; i < flic.frames; i++)
-    {
-        FlicFrame frame;
-        frame.pixels = (uint16_t*)calloc(flic.width * flic.height, sizeof(uint16_t));
-        frame.rowStride = flic.width;
-        if (flicReadFrame(&flic, &frame))
-        {
-            flicMakeImage(&flic, &frame, imageData);
+void flicOpenAppliesDefaultDimensions(void)
+{
+    const char* path = "default_dimensions.fli";
+    writeMinimalFlic(path, FLI_MAGIC_NUMBER, 0, 0, 0);
 
-            char imageFileName[16];
-            sprintf(imageFileName, "frame%02d.bmp", i);
-            stbi_write_bmp(imageFileName, flic.width, flic.height, 3, imageData);
-        }
-    }
-
+    Flic flic;
+    TEST_ASSERT_TRUE(flicOpen(&flic, path));
+    TEST_ASSERT_EQUAL_UINT16(1, flic.frames);
+    TEST_ASSERT_EQUAL_UINT16(320, flic.width);
+    TEST_ASSERT_EQUAL_UINT16(200, flic.height);
+    TEST_ASSERT_EQUAL_UINT16(70, flic.speed);
     flicClose(&flic);
 
-    return 0;
+    remove(path);
+}
+
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+int main(void)
+{
+    UNITY_BEGIN();
+    RUN_TEST(flicOpenFailsForMissingFile);
+    RUN_TEST(flicOpenFailsForInvalidMagic);
+    RUN_TEST(flicOpenAppliesDefaultDimensions);
+    return UNITY_END();
 }
