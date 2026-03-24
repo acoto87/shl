@@ -122,7 +122,7 @@ void valueTypeTest()
     for(int i = 0; i < count/2; i++)
     {
         int index = rand() % list.count;
-        (void)(list.items[index]);
+        int value = list.items[index];
         int32_t previousCount = list.count;
         IntListRemoveAt(&list, index);
         assert(list.count == previousCount - 1);
