@@ -116,7 +116,7 @@ void valueTypeTest()
 
     printf("--- Start test 3: add duplicated %d objects ---\n", count/2);
     start = getTime();
-    uint32_t prevCount = set.count;
+    int32_t prevCount = set.count;
     for(int i = 0; i < count/2; i++)
     {
         int x = rand() % set.count;
@@ -264,7 +264,7 @@ void referenceTypeTest()
 
     printf("--- Start test 3: add duplicated %d objects ---\n", count/2);
     start = getTime();
-    uint32_t prevCount = set.count;
+    int32_t prevCount = set.count;
     for(int i = 0; i < count/2; i++)
     {
         int index = rand() % set.count;

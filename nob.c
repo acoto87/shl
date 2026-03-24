@@ -37,7 +37,7 @@ static const TestTarget TestTargets[] =
 
 static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
 {
-    nob_cmd_append(cmd, "-std=c99", "-Wall", "-Wextra", "-I.", "-Itests", "-Itests/vendor/unity/src");
+    nob_cmd_append(cmd, "-std=c99", "-Wall", "-Wextra", "-Wpedantic", "-I.", "-Itests", "-Itests/vendor/unity/src");
 
     switch (mode)
     {

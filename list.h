@@ -44,8 +44,8 @@
     \
     typedef struct \
     { \
-        uint32_t count; \
-        uint32_t capacity; \
+        int32_t count; \
+        int32_t capacity; \
         bool (*equalsFn)(const itemType item1, const itemType item2); \
         void (*freeFn)(itemType item); \
         itemType defaultValue; \
@@ -74,7 +74,7 @@
 #define shlDefineList(typeName, itemType) \
     void typeName ## __resize(typeName* list, int32_t minSize) \
     { \
-        uint32_t oldCapacity = list->capacity; \
+        int32_t oldCapacity = list->capacity; \
         \
         list->capacity = oldCapacity << 1; \
         if (list->capacity < minSize) \

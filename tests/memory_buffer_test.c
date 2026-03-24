@@ -11,11 +11,6 @@
 const char* BufferTestStr = "Buffer test";
 const char* EndBlockStr = "End block";
 
-static float getTime()
-{
-    return (float)clock() / CLOCKS_PER_SEC;
-}
-
 uint8_t* testWriting(size_t* length)
 {
     MemoryBuffer buffer = {0};

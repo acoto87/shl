@@ -194,7 +194,7 @@ void referenceTypeTest()
     printf("--- Start test 2: peek min object ---\n");
     start = getTime();
     const char* peek = SHeapPeek(&heap);
-    assert(strlen(peek) == min);
+        assert(strlen(peek) == (size_t)min);
     end = getTime();
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 2:  peek min object ---\n");

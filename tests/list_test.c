@@ -123,7 +123,7 @@ void valueTypeTest()
     {
         int index = rand() % list.count;
         int value = list.items[index];
-        uint32_t previousCount = list.count;
+        int32_t previousCount = list.count;
         IntListRemoveAt(&list, index);
         assert(list.count == previousCount - 1);
     }

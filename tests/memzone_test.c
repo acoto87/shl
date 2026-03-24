@@ -61,17 +61,17 @@ void largeAllocationTest(void)
 {
     srand(time(NULL));
 
-    printf("sizeof(Entity) = %u\n", sizeof(Entity));
-    printf("sizeof(memzone_t) = %u\n", sizeof(memzone_t));
-    printf("sizeof(memblock_t) = %u\n", sizeof(memblock_t));
+    printf("sizeof(Entity) = %zu\n", sizeof(Entity));
+    printf("sizeof(memzone_t) = %zu\n", sizeof(memzone_t));
+    printf("sizeof(memblock_t) = %zu\n", sizeof(memblock_t));
     printf("\n");
 
     size_t zoneSize = 2 * 1024 * 1024; // 2MB
     memzone_t* zone = mzInit(zoneSize);
     if (!zone)
     {
-        printf("ERROR: Couldn't allocate %d bytes\n", zoneSize);
-        return -1;
+        printf("ERROR: Couldn't allocate %zu bytes\n", zoneSize);
+        return;
     }
 
     assert(zone->maxSize == zoneSize);
