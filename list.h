@@ -44,8 +44,8 @@
     \
     typedef struct \
     { \
-        uint32_t count; \
-        uint32_t capacity; \
+        int32_t count; \
+        int32_t capacity; \
         bool (*equalsFn)(const itemType item1, const itemType item2); \
         void (*freeFn)(itemType item); \
         itemType defaultValue; \
@@ -74,10 +74,10 @@
 #define shlDefineList(typeName, itemType) \
     void typeName ## __resize(typeName* list, int32_t minSize) \
     { \
-        uint32_t oldCapacity = list->capacity; \
+        int32_t oldCapacity = list->capacity; \
         \
         list->capacity = oldCapacity << 1; \
-        if (list->capacity < (uint32_t)minSize) \
+        if (list->capacity < minSize) \
             list->capacity = minSize; \
         \
         list->items = (itemType *)realloc(list->items, list->capacity * sizeof(itemType)); \
@@ -137,7 +137,7 @@
         if (!list->items) \
             return; \
         \
-        if (index < 0 || (uint32_t)index > list->count) \
+        if (index < 0 || index > list->count) \
             return; \
         \
         if (list->count + count >= list->capacity) \
@@ -171,10 +171,10 @@
         if (!list->equalsFn) \
             return -1; \
         \
-        for(uint32_t i = 0; i < list->count; i++) \
+        for(int32_t i = 0; i < list->count; i++) \
         { \
             if (list->equalsFn(list->items[i], value)) \
-                return (int32_t)i; \
+                return i; \
         } \
         \
         return -1; \
@@ -190,7 +190,7 @@
         if (!list->items) \
             return list->defaultValue; \
         \
-        if (index < 0 || (uint32_t)index >= list->count) \
+        if (index < 0 || index >= list->count) \
             return list->defaultValue; \
         \
         return list->items[index]; \
@@ -201,7 +201,7 @@
         if (!list->items) \
             return; \
         \
-        if (index < 0 || (uint32_t)index >= list->count) \
+        if (index < 0 || index >= list->count) \
             return; \
         \
         itemType currentValue = list->items[index]; \
@@ -216,10 +216,10 @@
         if (!list->items) \
             return; \
         \
-        if (index < 0 || (uint32_t)index >= list->count) \
+        if (index < 0 || index >= list->count) \
             return; \
         \
-        if ((uint32_t)(index + count) > list->count) \
+        if (index + count > list->count) \
             return; \
         \
         if (list->freeFn) \
@@ -251,7 +251,7 @@
         \
         if (list->freeFn) \
         { \
-            for(uint32_t i = 0; i < list->count; i++) \
+            for(int32_t i = 0; i < list->count; i++) \
                 list->freeFn(list->items[i]); \
         } \
         \

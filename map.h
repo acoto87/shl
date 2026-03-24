@@ -66,10 +66,10 @@
     } typeName ## __Entry__; \
     \
     typedef struct { \
-        uint32_t count; \
-        uint32_t capacity; \
-        uint32_t loadFactor; \
-        uint32_t shift; \
+        int32_t count; \
+        int32_t capacity; \
+        int32_t loadFactor; \
+        int32_t shift; \
         uint32_t (*hashFn)(const keyType key); \
         bool (*equalsFn)(const keyType item1, const keyType item2); \
         void (*freeFn)(valueType item); \
@@ -86,17 +86,17 @@
     void typeName ## Clear(typeName* map);
 
 #define shlDefineMap(typeName, keyType, valueType) \
-    static uint32_t typeName ## __fibHash(uint32_t hash, uint32_t shift) \
+    static int32_t typeName ## __fibHash(uint32_t hash, int32_t shift) \
     { \
         const uint32_t hashConstant = 2654435769u; \
-        return (hash * hashConstant) >> shift; \
+        return (int32_t)((hash * hashConstant) >> shift); \
     } \
     \
     static void typeName ## __resize(typeName* map); \
     \
-    static int32_t typeName ## __findEmptyBucket(typeName* map, uint32_t index) \
+    static int32_t typeName ## __findEmptyBucket(typeName* map, int32_t index) \
     { \
-        for(uint32_t i = 0; i < map->capacity; i++) \
+        for(int32_t i = 0; i < map->capacity; i++) \
         { \
             if (!map->entries[(index + i) % map->capacity].active) \
                 return (index + i) % map->capacity; \
@@ -107,7 +107,8 @@
     \
     static void typeName ## __insert(typeName* map, keyType key, valueType value) \
     { \
-        uint32_t hash, index; \
+        uint32_t hash; \
+        int32_t index; \
         int32_t next; \
         hash = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
@@ -148,7 +149,7 @@
             typeName ## __insert(map, key, value); \
             return; \
         } \
-        if (index != (uint32_t)next) \
+        if (index != next) \
             map->entries[index].next = next; \
         \
         map->entries[next].active = true; \
@@ -161,7 +162,7 @@
     \
     static void typeName ## __resize(typeName* map) \
     { \
-        uint32_t oldCapacity = map->capacity; \
+        int32_t oldCapacity = map->capacity; \
         typeName ## __Entry__* old = map->entries; \
         \
         map->loadFactor = oldCapacity; \
@@ -169,7 +170,7 @@
         map->entries = (typeName ## __Entry__*)calloc(map->capacity, sizeof(typeName ## __Entry__)); \
         map->count = 0; \
         \
-        for(uint32_t i = 0; i < oldCapacity; i++) \
+        for(int32_t i = 0; i < oldCapacity; i++) \
         { \
             if(old[i].active) \
                 typeName ## __insert(map, old[i].key, old[i].value); \
@@ -206,7 +207,8 @@
         if (!map->entries) \
             return false; \
         \
-        uint32_t index, hash; \
+        int32_t index; \
+        uint32_t hash; \
         hash = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
         bool found = false; \
@@ -235,7 +237,8 @@
         if (!map->entries) \
             return map->defaultValue; \
         \
-        uint32_t index, hash; \
+        int32_t index; \
+        uint32_t hash; \
         hash = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
         valueType value = map->defaultValue; \
@@ -275,7 +278,8 @@
         if (!map->entries) \
             return; \
         \
-        uint32_t prevIndex, index, hash; \
+        int32_t prevIndex, index; \
+        uint32_t hash; \
         hash = prevIndex = index = typeName ## __fibHash(map->hashFn(key), map->shift); \
         \
         while (map->entries[index].active) \
@@ -323,7 +327,7 @@
         if (!map->entries) \
             return; \
         \
-        for(uint32_t i = 0; i < map->capacity; i++) \
+        for(int32_t i = 0; i < map->capacity; i++) \
         { \
             if (map->entries[i].active) \
             { \

@@ -92,7 +92,7 @@ void valueTypeTest()
     {
         int x = i;
         assert(IntSetAdd(&set, x));
-        assert(set.count == (uint32_t)(i + 1));
+        assert(set.count == i + 1);
     }
     end = getTime();
     printf("Set count and capacity: (%d, %d)\n", set.count, set.capacity);
@@ -116,7 +116,7 @@ void valueTypeTest()
 
     printf("--- Start test 3: add duplicated %d objects ---\n", count/2);
     start = getTime();
-    uint32_t prevCount = set.count;
+    int32_t prevCount = set.count;
     for(int i = 0; i < count/2; i++)
     {
         int x = rand() % set.count;
@@ -240,7 +240,7 @@ void referenceTypeTest()
     {
         char *str = strings[i];
         assert(SSetAdd(&set, str));
-        assert(set.count == (uint32_t)(i + 1));
+        assert(set.count == i + 1);
     }
     end = getTime();
     printf("Set count and capacity: (%d, %d)\n", set.count, set.capacity);
@@ -264,7 +264,7 @@ void referenceTypeTest()
 
     printf("--- Start test 3: add duplicated %d objects ---\n", count/2);
     start = getTime();
-    uint32_t prevCount = set.count;
+    int32_t prevCount = set.count;
     for(int i = 0; i < count/2; i++)
     {
         int index = rand() % set.count;

@@ -123,7 +123,7 @@ void valueTypeTest()
     {
         int index = rand() % list.count;
         (void)(list.items[index]);
-        uint32_t previousCount = list.count;
+        int32_t previousCount = list.count;
         IntListRemoveAt(&list, index);
         assert(list.count == previousCount - 1);
     }
@@ -187,7 +187,7 @@ void valueTypeTest()
     start = getTime();
     IntListRemoveAtRange(&list, rangeAt, rangeCount);
     end = getTime();
-    for(int i = 0; i < rangeCount && (uint32_t)(rangeAt + i) < list.count; i++)
+    for(int i = 0; i < rangeCount && rangeAt + i < list.count; i++)
         assert(list.items[rangeAt + i] != rangeValues[i]);
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
     printf("Time: %.2f seconds\n", end - start);
@@ -201,7 +201,7 @@ void valueTypeTest()
     start = getTime();
     IntListSort(&list, intCompare);
     end = getTime();
-    for(int i = 1; (uint32_t)i < list.count; i++)
+    for(int i = 1; i < list.count; i++)
         assert(list.items[i - 1] <= list.items[i]);
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 8: sorting %d objects ---\n", list.count);
@@ -372,7 +372,7 @@ void referenceTypeTest()
     for(int i = 0; i < count / 2; i++)
         EntriesListRemove(&list, entries[i]);
     end = getTime();
-    for(int i = 0; (uint32_t)i < list.count; i++)
+    for(int i = 0; i < list.count; i++)
         assert(strcmp(list.items[i]->name, "negative") != 0);
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
     printf("Time: %.2f seconds\n", end - start);
@@ -409,7 +409,7 @@ void referenceTypeTest()
     start = getTime();
     EntriesListRemoveAtRange(&list, rangeAt, rangeCount);
     end = getTime();
-    for(int i = 0; i < rangeCount && (uint32_t)(rangeAt + i) < list.count; i++)
+    for(int i = 0; i < rangeCount && rangeAt + i < list.count; i++)
         assert(list.items[rangeAt + i]->index >= 0);
     printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
     printf("Time: %.2f seconds\n", end - start);
@@ -423,7 +423,7 @@ void referenceTypeTest()
     start = getTime();
     EntriesListSort(&list, EntryCompare);
     end = getTime();
-    for(int i = 1; (uint32_t)i < list.count; i++)
+    for(int i = 1; i < list.count; i++)
         assert(EntryCompare(list.items[i - 1], list.items[i]) <= 0);
     printf("Time: %.2f seconds\n", end - start);
     printf("--- End test 8: sorting %d objects ---\n", list.count);

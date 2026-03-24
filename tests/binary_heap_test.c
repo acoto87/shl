@@ -52,7 +52,7 @@ void valueTypeTest()
         int x = rand() % count;
         if (x < min) min = x;
         IntHeapPush(&heap, x);
-        assert(heap.count == (uint32_t)(i + 1));
+        assert(heap.count == i + 1);
     }
     end = getTime();
     printf("BinaryHeap count and capacity: (%d, %d)\n", heap.count, heap.capacity);
@@ -182,7 +182,7 @@ void referenceTypeTest()
         int len = strlen(strings[i]);
         if (len < min) min = len;
         SHeapPush(&heap, strings[i]);
-        assert(heap.count == (uint32_t)(i + 1));
+        assert(heap.count == i + 1);
     }
     end = getTime();
     printf("BinaryHeap count and capacity: (%d, %d)\n", heap.count, heap.capacity);

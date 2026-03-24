@@ -52,10 +52,10 @@
     } typeName ## __Entry__; \
     \
     typedef struct { \
-        uint32_t count; \
-        uint32_t capacity; \
-        uint32_t loadFactor; \
-        uint32_t shift; \
+        int32_t count; \
+        int32_t capacity; \
+        int32_t loadFactor; \
+        int32_t shift; \
         uint32_t (*hashFn)(const itemType item); \
         bool (*equalsFn)(const itemType item1, const itemType item2); \
         void (*freeFn)(itemType item); \
@@ -71,17 +71,17 @@
     void typeName ## Clear(typeName* set); \
 
 #define shlDefineSet(typeName, itemType) \
-    static uint32_t typeName ## __fibHash(uint32_t hash, uint32_t shift) \
+    static int32_t typeName ## __fibHash(uint32_t hash, int32_t shift) \
     { \
         const uint32_t hashConstant = 2654435769u; \
-        return (hash * hashConstant) >> shift; \
+        return (int32_t)((hash * hashConstant) >> shift); \
     } \
     \
     static void typeName ## __resize(typeName* set); \
     \
-    static int32_t typeName ## __findEmptyBucket(typeName* set, uint32_t index) \
+    static int32_t typeName ## __findEmptyBucket(typeName* set, int32_t index) \
     { \
-        for(uint32_t i = 0; i < set->capacity; i++) \
+        for(int32_t i = 0; i < set->capacity; i++) \
         { \
             if (!set->entries[(index + i) % set->capacity].active) \
                 return (index + i) % set->capacity; \
@@ -92,7 +92,7 @@
     \
     static void typeName ## __resize(typeName* set) \
     { \
-        uint32_t oldCapacity = set->capacity; \
+        int32_t oldCapacity = set->capacity; \
         typeName ## __Entry__* old = set->entries; \
         \
         set->loadFactor = oldCapacity; \
@@ -100,7 +100,7 @@
         set->entries = (typeName ## __Entry__*)calloc(set->capacity, sizeof(typeName ## __Entry__)); \
         set->count = 0; \
         \
-        for(uint32_t i = 0; i < oldCapacity; i++) \
+        for(int32_t i = 0; i < oldCapacity; i++) \
         { \
             if(old[i].active) \
                 typeName ## Add(set, old[i].item); \
@@ -140,7 +140,8 @@
         if(set->count == set->loadFactor) \
             typeName ## __resize(set); \
         \
-        uint32_t hash, index; \
+        uint32_t hash; \
+        int32_t index; \
         int32_t next; \
         hash = index = typeName ## __fibHash(set->hashFn(item), set->shift); \
         \
@@ -161,7 +162,7 @@
             typeName ## __resize(set); \
             return typeName ## Add(set, item); \
         } \
-        if (index != (uint32_t)next) \
+        if (index != next) \
             set->entries[index].next = next; \
         \
         set->entries[next].active = true; \
@@ -177,7 +178,8 @@
         if (!set->entries) \
             return false; \
         \
-        uint32_t index, hash; \
+        int32_t index; \
+        uint32_t hash; \
         hash = index = typeName ## __fibHash(set->hashFn(item), set->shift); \
         \
         bool found = false; \
@@ -204,7 +206,8 @@
         if (!set->entries) \
             return; \
         \
-        uint32_t prevIndex, index, hash; \
+        int32_t prevIndex, index; \
+        uint32_t hash; \
         hash = prevIndex = index = typeName ## __fibHash(set->hashFn(item), set->shift); \
         \
         while (set->entries[index].active) \
@@ -250,7 +253,7 @@
         if (!set->entries) \
             return; \
         \
-        for(uint32_t i = 0; i < set->capacity; i++) \
+        for(int32_t i = 0; i < set->capacity; i++) \
         { \
             if (set->entries[i].active) \
             { \
