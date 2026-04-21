@@ -37,14 +37,14 @@ void waveWriterCreatesMonoFile(void)
     TEST_ASSERT_NOT_NULL(file);
 
     uint8_t header[SHL_WAVE_HEADER_SIZE];
-    TEST_ASSERT_EQUAL_UINT32(sizeof(header), fread(header, 1, sizeof(header), file));
+    TEST_ASSERT_EQUAL_size_t(sizeof(header), fread(header, 1, sizeof(header), file));
     fclose(file);
 
     TEST_ASSERT_EQUAL_MEMORY("RIFF", header, 4);
     TEST_ASSERT_EQUAL_MEMORY("WAVE", header + 8, 4);
     TEST_ASSERT_EQUAL_MEMORY("fmt ", header + 12, 4);
-    TEST_ASSERT_EQUAL_UINT8(1, header[22]);
-    TEST_ASSERT_EQUAL_UINT8(16, header[34]);
+    TEST_ASSERT_EQUAL_UINT8(1, header[22]);  /* channel count */
+    TEST_ASSERT_EQUAL_UINT8(16, header[34]); /* bits per sample */
 
     remove(path);
 }
@@ -58,11 +58,11 @@ void waveWriterCreatesStereoHeader(void)
     TEST_ASSERT_NOT_NULL(file);
 
     uint8_t header[SHL_WAVE_HEADER_SIZE];
-    TEST_ASSERT_EQUAL_UINT32(sizeof(header), fread(header, 1, sizeof(header), file));
+    TEST_ASSERT_EQUAL_size_t(sizeof(header), fread(header, 1, sizeof(header), file));
     fclose(file);
 
-    TEST_ASSERT_EQUAL_UINT8(2, header[22]);
-    TEST_ASSERT_EQUAL_UINT8(4, header[32]);
+    TEST_ASSERT_EQUAL_UINT8(2, header[22]); /* channel count */
+    TEST_ASSERT_EQUAL_UINT8(4, header[32]); /* block align (channels * sizeof(short)) */
 
     remove(path);
 }

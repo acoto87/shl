@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #ifdef __cplusplus
@@ -58,6 +59,9 @@ bool shlWaveFlush(shlWaveFile *waveFile, bool closeFile);
 #endif
 
 #ifdef SHL_WAVE_WRITER_IMPLEMENTATION
+
+#include <assert.h>
+#include <limits.h>
 
 static bool __shlWaveFlush(shlWaveFile *waveFile)
 {
@@ -126,7 +130,8 @@ bool shlWaveWrite(shlWaveFile *waveFile, const shl_sample_t *in, long count, int
             *p++ = (unsigned char) (s >> 8);
         }
 
-        waveFile->_bufferPos = p - waveFile->_buffer;
+        assert(p - waveFile->_buffer <= LONG_MAX);
+        waveFile->_bufferPos = (long)(p - waveFile->_buffer);
     }
 
     return true;

@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define nob_cc(cmd) nob_cmd_append(cmd, "gcc")
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
@@ -33,6 +34,7 @@ static const TestTarget TestTargets[] =
     { "tests/set_test.c", "set_test" },
     { "tests/stack_test.c", "stack_test" },
     { "tests/wave_writer_test.c", "wave_writer_test" },
+    { "tests/wstr_test.c", "wstr_test" },
 };
 
 static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
