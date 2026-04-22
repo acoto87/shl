@@ -599,6 +599,7 @@ bool mz_validate(const memzone_t* zone)
     size_t totalAllocatedPayload = 0;
     int32_t blockCount = 0;
     bool roverFound = false;
+    const memblock_t* previousBlock = NULL;
 
     const memblock_t* rover = &zone->blockList;
     do
@@ -621,7 +622,7 @@ bool mz_validate(const memzone_t* zone)
             return mz__validationFailure(zone, rover, "block links contain a null pointer");
         }
 
-        if (rover->next->prev != rover || rover->prev->next != rover)
+        if (previousBlock != NULL && rover->prev != previousBlock)
         {
             return mz__validationFailure(zone, rover, "block links are not bidirectionally consistent");
         }
@@ -665,11 +666,17 @@ bool mz_validate(const memzone_t* zone)
             roverFound = true;
         }
 
+        previousBlock = rover;
         totalBlockSize += rover->size;
         blockCount++;
         expectedBlockStart = blockEnd;
         rover = rover->next;
     } while (rover != &zone->blockList);
+
+    if (zone->blockList.prev != previousBlock)
+    {
+        return mz__validationFailure(zone, &zone->blockList, "block links are not bidirectionally consistent");
+    }
 
     if (!roverFound)
     {

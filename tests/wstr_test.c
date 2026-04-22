@@ -175,7 +175,7 @@ static void test_wsv_fromString_normal(void)
     StringView v = wsv_fromString(&s);
     TEST_ASSERT_EQUAL_size_t(5, v.length);
     TEST_ASSERT_EQUAL_MEMORY("hello", v.data, 5);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1278,14 +1278,14 @@ static void test_wsv_toString_creates_copy(void)
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
     /* Data pointer is a fresh allocation, not the same as v.data */
     TEST_ASSERT_TRUE(v.data != s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wsv_toString_empty_view(void)
 {
     String s = wsv_toString(wsv_empty());
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1316,7 +1316,7 @@ static void test_wstr_withCapacity_capacity_set(void)
     TEST_ASSERT_GREATER_OR_EQUAL_size_t(32, s.capacity);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
     TEST_ASSERT_NOT_NULL(s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_withCapacity_zero(void)
@@ -1324,7 +1324,7 @@ static void test_wstr_withCapacity_zero(void)
     String s = wstr_withCapacity(0);
     /* Requesting 0 capacity is fine; may or may not allocate */
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1335,14 +1335,14 @@ static void test_wstr_fromCString_null_gives_empty(void)
 {
     String s = wstr_fromCString(NULL);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_fromCString_empty_string(void)
 {
     String s = wstr_fromCString("");
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_fromCString_normal(void)
@@ -1350,14 +1350,62 @@ static void test_wstr_fromCString_normal(void)
     String s = wstr_fromCString("hello");
     TEST_ASSERT_EQUAL_size_t(5, s.length);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_fromCString_null_terminated(void)
 {
     String s = wstr_fromCString("hi");
     TEST_ASSERT_EQUAL_CHAR(0, s.data[s.length]);
-    wstr_free(&s);
+    wstr_free(s);
+}
+
+static String test_wstr__fromCStringFormatv_helper(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    String string = wstr_fromCStringFormatv(fmt, args);
+    va_end(args);
+    return string;
+}
+
+static void test_wstr_fromCStringFormat_simple_string(void)
+{
+    String s = wstr_fromCStringFormat("hello %s %d", "world", 42);
+    TEST_ASSERT_EQUAL_size_t(14, s.length);
+    TEST_ASSERT_EQUAL_STRING("hello world 42", s.data);
+    TEST_ASSERT_EQUAL_CHAR(0, s.data[s.length]);
+    wstr_free(s);
+}
+
+static void test_wstr_fromCStringFormat_null_format_gives_empty(void)
+{
+    String s = wstr_fromCStringFormat(NULL);
+    TEST_ASSERT_NULL(s.data);
+    TEST_ASSERT_EQUAL_size_t(0, s.length);
+    TEST_ASSERT_EQUAL_size_t(0, s.capacity);
+}
+
+static void test_wstr_fromCStringFormatv_formats_arguments(void)
+{
+    String s = test_wstr__fromCStringFormatv_helper("%s:%04d", "id", 7);
+    TEST_ASSERT_EQUAL_size_t(7, s.length);
+    TEST_ASSERT_EQUAL_STRING("id:0007", s.data);
+    TEST_ASSERT_EQUAL_CHAR(0, s.data[s.length]);
+    wstr_free(s);
+}
+
+static void test_wstr_fromCStringFormatv_long_string_grows_buffer(void)
+{
+    String s = test_wstr__fromCStringFormatv_helper(
+        "%s%s",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+    TEST_ASSERT_EQUAL_size_t(128, s.length);
+    TEST_ASSERT_EQUAL_CHAR('A', s.data[0]);
+    TEST_ASSERT_EQUAL_CHAR('B', s.data[127]);
+    TEST_ASSERT_EQUAL_CHAR(0, s.data[s.length]);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1370,14 +1418,14 @@ static void test_wstr_fromView_normal(void)
     String s = wstr_fromView(v);
     TEST_ASSERT_EQUAL_size_t(5, s.length);
     TEST_ASSERT_EQUAL_STRING("world", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_fromView_empty(void)
 {
     String s = wstr_fromView(wsv_empty());
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1403,7 +1451,7 @@ static void test_wstr_adopt_normal(void)
     TEST_ASSERT_EQUAL_size_t(cap, s.capacity);
     TEST_ASSERT_EQUAL_CHAR(0, s.data[5]);    /* null terminator set */
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_adopt_length_clamped_to_capacity(void)
@@ -1416,26 +1464,42 @@ static void test_wstr_adopt_length_clamped_to_capacity(void)
     String s = wstr_adopt(buf, 10, cap);
     TEST_ASSERT_EQUAL_size_t(cap, s.length);
     TEST_ASSERT_EQUAL_CHAR(0, s.data[cap]);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
    wstr_free
    ========================================================================= */
 
-static void test_wstr_free_null_is_safe(void)
+static void test_wstr_free_ptr_null_is_safe(void)
 {
-    wstr_free(NULL);  /* must not crash */
+    wstr_freePtr(NULL);  /* must not crash */
     TEST_PASS();
 }
 
-static void test_wstr_free_resets_string(void)
+static void test_wstr_free_ptr_resets_string(void)
 {
     String s = wstr_fromCString("hello");
-    wstr_free(&s);
+    wstr_freePtr(&s);
     TEST_ASSERT_NULL(s.data);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
     TEST_ASSERT_EQUAL_size_t(0, s.capacity);
+}
+
+static void test_wstr_free_null_string_is_safe(void)
+{
+    wstr_free(wstr_make());  /* must not crash */
+    TEST_PASS();
+}
+
+static void test_wstr_free_releases_owned_buffer(void)
+{
+    String s = wstr_fromCString("hello");
+    char* data = s.data;
+
+    TEST_ASSERT_NOT_NULL(data);
+    wstr_free(s);
+    TEST_PASS();
 }
 
 /* =========================================================================
@@ -1456,7 +1520,7 @@ static void test_wstr_clear_resets_length(void)
     TEST_ASSERT_EQUAL_CHAR(0, s.data[0]);
     /* capacity is unchanged after clear */
     TEST_ASSERT_GREATER_THAN_size_t(0, s.capacity);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_clear_empty_string_is_safe(void)
@@ -1482,7 +1546,7 @@ static void test_wstr_view_normal(void)
     StringView v = wstr_view(&s);
     ASSERT_SV_EQ("hello", v);
     TEST_ASSERT_EQUAL_PTR(s.data, v.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_cstr_null_gives_empty_string(void)
@@ -1497,7 +1561,7 @@ static void test_wstr_cstr_normal(void)
     String s = wstr_fromCString("world");
     const char* cs = wstr_cstr(&s);
     TEST_ASSERT_EQUAL_STRING("world", cs);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_isEmpty_null_is_true(void)
@@ -1515,7 +1579,7 @@ static void test_wstr_isEmpty_non_empty_is_false(void)
 {
     String s = wstr_fromCString("x");
     TEST_ASSERT_FALSE(wstr_isEmpty(&s));
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1529,7 +1593,7 @@ static void test_wstr_reserve_grows_capacity(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_GREATER_OR_EQUAL_size_t(64, s.capacity);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_reserve_already_sufficient(void)
@@ -1540,7 +1604,7 @@ static void test_wstr_reserve_already_sufficient(void)
     TEST_ASSERT_TRUE(ok);
     /* capacity should not shrink */
     TEST_ASSERT_GREATER_OR_EQUAL_size_t(capBefore, s.capacity);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1563,7 +1627,7 @@ static void test_wstr_resize_grow_zero_fills(void)
     TEST_ASSERT_EQUAL_CHAR(0, s.data[3]);
     TEST_ASSERT_EQUAL_CHAR(0, s.data[4]);
     TEST_ASSERT_EQUAL_CHAR(0, s.data[5]);  /* null terminator */
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_resize_shrink(void)
@@ -1574,7 +1638,7 @@ static void test_wstr_resize_shrink(void)
     TEST_ASSERT_EQUAL_size_t(3, s.length);
     TEST_ASSERT_EQUAL_CHAR(0, s.data[3]);
     TEST_ASSERT_EQUAL_MEMORY("hel", s.data, 3);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_resize_to_same_length(void)
@@ -1583,7 +1647,7 @@ static void test_wstr_resize_to_same_length(void)
     bool ok = wstr_resize(&s, 5);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_size_t(5, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_resize_to_zero(void)
@@ -1592,7 +1656,7 @@ static void test_wstr_resize_to_zero(void)
     bool ok = wstr_resize(&s, 0);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1612,7 +1676,7 @@ static void test_wstr_assign_normal(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
     TEST_ASSERT_EQUAL_size_t(5, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_assign_overwrites_existing_content(void)
@@ -1622,7 +1686,7 @@ static void test_wstr_assign_overwrites_existing_content(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("world!", s.data);
     TEST_ASSERT_EQUAL_size_t(6, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_assign_empty_view_clears(void)
@@ -1631,7 +1695,7 @@ static void test_wstr_assign_empty_view_clears(void)
     bool ok = wstr_assign(&s, wsv_empty());
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_assign_self_aliased(void)
@@ -1647,7 +1711,7 @@ static void test_wstr_assign_self_aliased(void)
     TEST_ASSERT_EQUAL_size_t(5, s.length);
     /* Suppress unused variable warning */
     (void)suffix;
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_assignCString_normal(void)
@@ -1656,7 +1720,7 @@ static void test_wstr_assignCString_normal(void)
     bool ok = wstr_assignCString(&s, "hello");
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_assignCString_null_clears(void)
@@ -1665,7 +1729,7 @@ static void test_wstr_assignCString_null_clears(void)
     bool ok = wstr_assignCString(&s, NULL);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1683,7 +1747,7 @@ static void test_wstr_append_to_empty(void)
     bool ok = wstr_append(&s, wsv_fromCString("hello"));
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_append_to_existing(void)
@@ -1693,7 +1757,7 @@ static void test_wstr_append_to_existing(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello world", s.data);
     TEST_ASSERT_EQUAL_size_t(11, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_append_empty_view_is_noop(void)
@@ -1702,7 +1766,7 @@ static void test_wstr_append_empty_view_is_noop(void)
     bool ok = wstr_append(&s, wsv_empty());
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_append_self_aliased(void)
@@ -1713,7 +1777,7 @@ static void test_wstr_append_self_aliased(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hellohello", s.data);
     TEST_ASSERT_EQUAL_size_t(10, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_append_self_suffix_aliased(void)
@@ -1724,7 +1788,7 @@ static void test_wstr_append_self_suffix_aliased(void)
     bool ok = wstr_append(&s, suffix);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("helloello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_appendCString_normal(void)
@@ -1733,7 +1797,7 @@ static void test_wstr_appendCString_normal(void)
     bool ok = wstr_appendCString(&s, "bar");
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("foobar", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_appendCString_null_is_noop(void)
@@ -1742,7 +1806,7 @@ static void test_wstr_appendCString_null_is_noop(void)
     bool ok = wstr_appendCString(&s, NULL);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("foo", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_appendChar_normal(void)
@@ -1753,7 +1817,7 @@ static void test_wstr_appendChar_normal(void)
     ok = wstr_appendChar(&s, 'o');
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_appendChar_to_empty(void)
@@ -1763,7 +1827,7 @@ static void test_wstr_appendChar_to_empty(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("x", s.data);
     TEST_ASSERT_EQUAL_size_t(1, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1779,7 +1843,7 @@ static void test_wstr_insert_index_beyond_length_returns_false(void)
 {
     String s = wstr_fromCString("hello");
     TEST_ASSERT_FALSE(wstr_insert(&s, 10, wsv_fromCString("x")));
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_insert_at_start(void)
@@ -1788,7 +1852,7 @@ static void test_wstr_insert_at_start(void)
     bool ok = wstr_insert(&s, 0, wsv_fromCString("hello "));
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello world", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_insert_in_middle(void)
@@ -1797,7 +1861,7 @@ static void test_wstr_insert_in_middle(void)
     bool ok = wstr_insert(&s, 3, wsv_fromCString("l"));
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_insert_at_end(void)
@@ -1806,7 +1870,7 @@ static void test_wstr_insert_at_end(void)
     bool ok = wstr_insert(&s, 5, wsv_fromCString(" world"));
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello world", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_insert_empty_view_is_noop(void)
@@ -1815,7 +1879,7 @@ static void test_wstr_insert_empty_view_is_noop(void)
     bool ok = wstr_insert(&s, 2, wsv_empty());
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_insert_self_aliased(void)
@@ -1826,7 +1890,7 @@ static void test_wstr_insert_self_aliased(void)
     bool ok = wstr_insert(&s, 1, self);  /* "a" + "ab" + "b" = "aabb" */
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("aabb", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1842,7 +1906,7 @@ static void test_wstr_removeRange_index_beyond_length_returns_false(void)
 {
     String s = wstr_fromCString("hello");
     TEST_ASSERT_FALSE(wstr_removeRange(&s, 10, 1));
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_removeRange_zero_length_is_noop(void)
@@ -1851,7 +1915,7 @@ static void test_wstr_removeRange_zero_length_is_noop(void)
     bool ok = wstr_removeRange(&s, 2, 0);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_removeRange_from_start(void)
@@ -1861,7 +1925,7 @@ static void test_wstr_removeRange_from_start(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("world", s.data);
     TEST_ASSERT_EQUAL_size_t(5, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_removeRange_from_middle(void)
@@ -1870,7 +1934,7 @@ static void test_wstr_removeRange_from_middle(void)
     bool ok = wstr_removeRange(&s, 5, 6);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_removeRange_length_clamped_at_end(void)
@@ -1881,7 +1945,7 @@ static void test_wstr_removeRange_length_clamped_at_end(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_size_t(3, s.length);
     TEST_ASSERT_EQUAL_MEMORY("hel", s.data, 3);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_removeRange_entire_string(void)
@@ -1891,7 +1955,7 @@ static void test_wstr_removeRange_entire_string(void)
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_size_t(0, s.length);
     TEST_ASSERT_EQUAL_CHAR(0, s.data[0]);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_removeRange_at_exact_end_is_noop(void)
@@ -1901,7 +1965,7 @@ static void test_wstr_removeRange_at_exact_end_is_noop(void)
     bool ok = wstr_removeRange(&s, 5, 3);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1919,7 +1983,7 @@ static void test_wstr_setFormat_simple_string(void)
     bool ok = wstr_setFormat(&s, "hello %s", "world");
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello world", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_setFormat_replaces_existing_content(void)
@@ -1928,7 +1992,7 @@ static void test_wstr_setFormat_replaces_existing_content(void)
     bool ok = wstr_setFormat(&s, "new %d", 42);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("new 42", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_setFormat_integers(void)
@@ -1936,7 +2000,7 @@ static void test_wstr_setFormat_integers(void)
     String s = wstr_make();
     wstr_setFormat(&s, "%d %d %d", -1, 0, 99);
     TEST_ASSERT_EQUAL_STRING("-1 0 99", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_setFormat_long_string(void)
@@ -1948,7 +2012,7 @@ static void test_wstr_setFormat_long_string(void)
         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_size_t(128, s.length);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_appendFormat_appends_to_existing(void)
@@ -1957,7 +2021,7 @@ static void test_wstr_appendFormat_appends_to_existing(void)
     bool ok = wstr_appendFormat(&s, " %s %d", "world", 42);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("hello world 42", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_appendFormat_null_string_returns_false(void)
@@ -1971,7 +2035,7 @@ static void test_wstr_appendFormat_to_empty(void)
     bool ok = wstr_appendFormat(&s, "n=%d", 7);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("n=7", s.data);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -1989,7 +2053,7 @@ static void test_wstr_capacity_grows_geometrically(void)
     }
     TEST_ASSERT_EQUAL_size_t(100, s.length);
     TEST_ASSERT_GREATER_OR_EQUAL_size_t(100, s.capacity);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wstr_null_term_always_present_after_mutations(void)
@@ -2003,7 +2067,7 @@ static void test_wstr_null_term_always_present_after_mutations(void)
     TEST_ASSERT_EQUAL_CHAR(0, s.data[s.length]);
     wstr_insert(&s, 0, wsv_fromCString("hi "));
     TEST_ASSERT_EQUAL_CHAR(0, s.data[s.length]);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -2039,8 +2103,8 @@ static void test_roundtrip_string_to_view_and_back(void)
     String copy = wstr_fromView(view);
     TEST_ASSERT_TRUE(wsv_equals(wstr_view(&original), wstr_view(&copy)));
     TEST_ASSERT_TRUE(original.data != copy.data);
-    wstr_free(&original);
-    wstr_free(&copy);
+    wstr_free(original);
+    wstr_free(copy);
 }
 
 static void test_chop_csv_line(void)
@@ -2080,7 +2144,7 @@ static void test_build_path_with_format(void)
     String path = wstr_make();
     wstr_setFormat(&path, "%s/%s.%s", "assets", "data", "bin");
     TEST_ASSERT_EQUAL_STRING("assets/data.bin", path.data);
-    wstr_free(&path);
+    wstr_free(path);
 }
 
 static void test_wstr_stress_append_and_trim_pipeline(void)
@@ -2096,7 +2160,7 @@ static void test_wstr_stress_append_and_trim_pipeline(void)
     StringView trimmed = wsv_trim(wstr_view(&s));
     TEST_ASSERT_EQUAL_CHAR('x', trimmed.data[0]);
     TEST_ASSERT_EQUAL_CHAR('x', trimmed.data[trimmed.length - 1]);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 static void test_wsv_nextToken_stress_counts_all_tokens(void)
@@ -2118,7 +2182,7 @@ static void test_wsv_nextToken_stress_counts_all_tokens(void)
     }
 
     TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT, tokenCount);
-    wstr_free(&s);
+    wstr_free(s);
 }
 
 /* =========================================================================
@@ -2362,6 +2426,10 @@ int main(void)
     RUN_TEST(test_wstr_fromCString_empty_string);
     RUN_TEST(test_wstr_fromCString_normal);
     RUN_TEST(test_wstr_fromCString_null_terminated);
+    RUN_TEST(test_wstr_fromCStringFormat_simple_string);
+    RUN_TEST(test_wstr_fromCStringFormat_null_format_gives_empty);
+    RUN_TEST(test_wstr_fromCStringFormatv_formats_arguments);
+    RUN_TEST(test_wstr_fromCStringFormatv_long_string_grows_buffer);
 
     /* wstr_fromView */
     RUN_TEST(test_wstr_fromView_normal);
@@ -2372,9 +2440,11 @@ int main(void)
     RUN_TEST(test_wstr_adopt_normal);
     RUN_TEST(test_wstr_adopt_length_clamped_to_capacity);
 
-    /* wstr_free */
-    RUN_TEST(test_wstr_free_null_is_safe);
-    RUN_TEST(test_wstr_free_resets_string);
+    /* wstr_free_ptr / wstr_free */
+    RUN_TEST(test_wstr_free_ptr_null_is_safe);
+    RUN_TEST(test_wstr_free_ptr_resets_string);
+    RUN_TEST(test_wstr_free_null_string_is_safe);
+    RUN_TEST(test_wstr_free_releases_owned_buffer);
 
     /* wstr_clear */
     RUN_TEST(test_wstr_clear_null_is_safe);
@@ -2470,3 +2540,4 @@ int main(void)
 
     return UNITY_END();
 }
+
