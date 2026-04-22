@@ -138,9 +138,12 @@ String     wsv_toString(StringView view);
 String     wstr_make(void);
 String     wstr_withCapacity(size_t capacity);
 String     wstr_fromCString(const char* text);
+String     wstr_fromCStringFormat(const char* textFormat, ...);
+String     wstr_fromCStringFormatv(const char* textFormat, va_list args);
 String     wstr_fromView(StringView view);
 String     wstr_adopt(char* buffer, size_t length, size_t capacity);
-void       wstr_free(String* string);
+void       wstr_freePtr(String* string);
+void       wstr_free(String string);
 void       wstr_clear(String* string);
 StringView wstr_view(const String* string);
 const char* wstr_cstr(const String* string);
@@ -835,6 +838,25 @@ String wstr_fromCString(const char* text)
     return wstr_fromView(wsv_fromCString(text));
 }
 
+String wstr_fromCStringFormat(const char* textFormat, ...)
+{
+    va_list args;
+    va_start(args, textFormat);
+    String string = wstr_fromCStringFormatv(textFormat, args);
+    va_end(args);
+    return string;
+}
+
+String wstr_fromCStringFormatv(const char* textFormat, va_list args)
+{
+    String string = wstr_make();
+    if (!wstr_setFormatv(&string, textFormat, args))
+    {
+        wstr_freePtr(&string);
+    }
+    return string;
+}
+
 String wstr_fromView(StringView view)
 {
     String string = wstr_make();
@@ -858,15 +880,27 @@ String wstr_adopt(char* buffer, size_t length, size_t capacity)
     return (String){buffer, length, capacity};
 }
 
-void wstr_free(String* string)
+void wstr_freePtr(String* string)
 {
     if (string == NULL)
     {
         return;
     }
 
-    WSTR_FREE(string->data);
+    if (string->data != NULL)
+    {
+        WSTR_FREE(string->data);
+    }
+
     *string = wstr_make();
+}
+
+void wstr_free(String string)
+{
+    if (string.data != NULL)
+    {
+        WSTR_FREE(string.data);
+    }
 }
 
 void wstr_clear(String* string)
@@ -940,7 +974,7 @@ bool wstr_assign(String* string, StringView view)
     {
         String temp = wsv_toString(view);
         bool ok = wstr_assign(string, wstr_view(&temp));
-        wstr_free(&temp);
+        wstr_free(temp);
         return ok;
     }
 
@@ -979,7 +1013,7 @@ bool wstr_append(String* string, StringView view)
     {
         String temp = wsv_toString(view);
         bool ok = wstr_append(string, wstr_view(&temp));
-        wstr_free(&temp);
+        wstr_free(temp);
         return ok;
     }
 
@@ -1020,7 +1054,7 @@ bool wstr_insert(String* string, size_t index, StringView view)
     {
         String temp = wsv_toString(view);
         bool ok = wstr_insert(string, index, wstr_view(&temp));
-        wstr_free(&temp);
+        wstr_free(temp);
         return ok;
     }
 

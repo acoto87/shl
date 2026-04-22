@@ -317,6 +317,51 @@ void mbSkipUnderflowTest(void)
     free(data);
 }
 
+void mbReadWriteIntegrationRoundTripTest(void)
+{
+    MemoryBuffer buf = {0};
+    mbInitEmpty(&buf);
+
+    TEST_ASSERT_TRUE(mbWriteUInt16LE(&buf, 0x1234u));
+    TEST_ASSERT_TRUE(mbWriteUInt32BE(&buf, 0x89ABCDEFu));
+    TEST_ASSERT_TRUE(mbWriteString(&buf, "OK", 2));
+    TEST_ASSERT_TRUE(mbSeek(&buf, 0));
+
+    uint16_t u16 = 0;
+    uint32_t u32 = 0;
+    char text[3] = {0};
+    TEST_ASSERT_TRUE(mbReadUInt16LE(&buf, &u16));
+    TEST_ASSERT_TRUE(mbReadUInt32BE(&buf, &u32));
+    TEST_ASSERT_TRUE(mbReadString(&buf, text, 2));
+    TEST_ASSERT_EQUAL_UINT16(0x1234u, u16);
+    TEST_ASSERT_EQUAL_UINT32(0x89ABCDEFu, u32);
+    TEST_ASSERT_EQUAL_STRING("OK", text);
+
+    mbFree(&buf);
+}
+
+void mbStressSequentialInt32RoundTripTest(void)
+{
+    MemoryBuffer buf = {0};
+    mbInitEmpty(&buf);
+
+    for (int32_t i = 0; i < SHL_TEST_STRESS_COUNT; i++)
+    {
+        TEST_ASSERT_TRUE(mbWriteInt32LE(&buf, i));
+    }
+
+    TEST_ASSERT_TRUE(mbSeek(&buf, 0));
+    for (int32_t i = 0; i < SHL_TEST_STRESS_COUNT; i++)
+    {
+        int32_t value = -1;
+        TEST_ASSERT_TRUE(mbReadInt32LE(&buf, &value));
+        TEST_ASSERT_EQUAL_INT32(i, value);
+    }
+    TEST_ASSERT_TRUE(mbIsEOF(&buf));
+
+    mbFree(&buf);
+}
+
 /* ------------------------------------------------------------------ */
 
 void setUp(void)
@@ -344,5 +389,7 @@ int main(void)
     RUN_TEST(mbSkipNegativeTest);
     RUN_TEST(mbSkipForwardTest);
     RUN_TEST(mbSkipUnderflowTest);
+    RUN_TEST(mbReadWriteIntegrationRoundTripTest);
+    RUN_TEST(mbStressSequentialInt32RoundTripTest);
     return UNITY_END();
 }

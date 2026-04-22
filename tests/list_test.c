@@ -1,439 +1,246 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
-#include <assert.h>
 
 #include "../list.h"
 #include "test_common.h"
 
-#if defined(SHL_LEAK_CHECK)
-static const int32_t count = 5000;
-#else
-static const int32_t count = 100000;
-#endif
-
-static float getTime()
-{
-    return (float)clock() / CLOCKS_PER_SEC;
-}
-
-// value type test
-bool intEquals(const int x, const int y)
+static bool intEquals(const int x, const int y)
 {
     return x == y;
 }
 
-int32_t intCompare(const int x, const int y)
+static int32_t intCompare(const int x, const int y)
 {
     return x - y;
 }
 
-shlDeclareList(IntList, int)
-shlDefineList(IntList, int)
-
-void edgeCaseValueTypeTest()
-{
-    IntListOptions options = {0};
-    options.defaultValue = -1;
-    options.equalsFn = intEquals;
-
-    IntList list;
-    IntListInit(&list, options);
-
-    assert(IntListGet(&list, 0) == -1);
-    IntListRemove(&list, 99);
-    assert(list.count == 0);
-
-    IntListAdd(&list, 2);
-    IntListAdd(&list, 3);
-    IntListInsert(&list, 0, 1);
-    IntListInsert(&list, list.count, 4);
-
-    assert(list.count == 4);
-    assert(IntListGet(&list, 0) == 1);
-    assert(IntListGet(&list, 3) == 4);
-
-    IntListRemove(&list, 99);
-    assert(list.count == 4);
-
-    IntListRemoveAtRange(&list, 2, 3);
-    assert(list.count == 4);
-
-    IntListReverse(&list);
-    assert(IntListGet(&list, 0) == 4);
-    assert(IntListGet(&list, 3) == 1);
-
-    int copy[6] = {0};
-    IntListCopyTo(&list, copy, 1);
-    assert(copy[1] == 4);
-    assert(copy[4] == 1);
-
-    int* array = IntListToArray(&list);
-    assert(array[0] == 4);
-    assert(array[3] == 1);
-    free(array);
-
-    IntListFree(&list);
-}
-
-void valueTypeTest()
-{
-    float start, end;
-
-    IntListOptions options = {0};
-    options.defaultValue = 0;
-    options.equalsFn = intEquals;
-
-    IntList list;
-    IntListInit(&list, options);
-
-    printf("--- Start value type tests ---\n");
-
-    printf("--- Start test 1: add %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
-    {
-        IntListAdd(&list, i);
-        assert(list.items[list.count - 1] == i);
-    }
-    end = getTime();
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: add %d objects ---\n", count);
-
-    printf("\n");
-
-    printf("--- Start test 2: contains %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int value = rand() % count;
-        assert(IntListContains(&list, value));
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 3: remove by index %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int index = rand() % list.count;
-        int value = list.items[index];
-        int32_t previousCount = list.count;
-        IntListRemoveAt(&list, index);
-        assert(list.count == previousCount - 1);
-    }
-    end = getTime();
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: remove by index %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 4: remove by value %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int value = rand() % count;
-        IntListRemove(&list, value);
-        assert(!IntListContains(&list, value));
-    }
-    end = getTime();
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 4: remove by value %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 5: insert %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int index = rand() % list.count;
-        IntListInsert(&list, index, index);
-        assert(list.items[index] == index);
-    }
-    end = getTime();
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 5: insert %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    const int rangeCount = count < 50000 ? count / 2 : 50000;
-    const int rangeAt = list.count > 100 ? 100 : 0;
-
-    int* rangeValues = (int*)malloc(rangeCount*sizeof(int));
-    for(int i = 0; i < rangeCount; i++)
-        rangeValues[i] = -i;
-
-    printf("--- Start test 6: insert range %d objects ---\n", rangeCount);
-    start = getTime();
-    IntListInsertRange(&list, rangeAt, rangeCount, rangeValues);
-    end = getTime();
-    for(int i = 0; i < rangeCount; i++)
-        assert(list.items[rangeAt + i] == rangeValues[i]);
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 6: insert range %d objects ---\n", rangeCount);
-
-    printf("\n");
-
-    printf("--- Start test 7: remove range %d objects ---\n", rangeCount);
-    start = getTime();
-    IntListRemoveAtRange(&list, rangeAt, rangeCount);
-    end = getTime();
-    for(int i = 0; i < rangeCount && rangeAt + i < list.count; i++)
-        assert(list.items[rangeAt + i] != rangeValues[i]);
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 7: remove range %d objects ---\n", rangeCount);
-
-    free(rangeValues);
-
-    printf("\n");
-
-    printf("--- Start test 8: sorting %d objects ---\n", list.count);
-    start = getTime();
-    IntListSort(&list, intCompare);
-    end = getTime();
-    for(int i = 1; i < list.count; i++)
-        assert(list.items[i - 1] <= list.items[i]);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 8: sorting %d objects ---\n", list.count);
-
-    printf("--- End value type tests ---\n");
-    IntListFree(&list);
-}
-
-// reference type test
 typedef struct
 {
     int index;
-    char *name;
+    const char* name;
 } Entry;
 
-bool EntryEquals(const Entry *e1, const Entry *e2)
+static bool entryEquals(const Entry* left, const Entry* right)
 {
-    return e1 == e2;
+    return left->index == right->index && strcmp(left->name, right->name) == 0;
 }
 
-int32_t EntryCompare(const Entry *e1, const Entry *e2)
+static int32_t entryCompare(const Entry* left, const Entry* right)
 {
-    if (e1->index == e2->index)
-        return strcmp(e1->name, e2->name);
-    return e1->index - e2->index;
+    if (left->index == right->index)
+    {
+        return strcmp(left->name, right->name);
+    }
+
+    return left->index - right->index;
 }
 
-void EntryFree(Entry* e)
+static void entryFree(Entry* entry)
 {
-    free(e);
+    free(entry);
 }
 
-shlDeclareList(EntriesList, Entry*)
-shlDefineList(EntriesList, Entry*)
+shlDeclareList(IntList, int)
+shlDefineList(IntList, int)
+shlDeclareList(EntryList, Entry*)
+shlDefineList(EntryList, Entry*)
 
-static int entryFreeCount = 0;
+static int g_entryFreeCount = 0;
 
-void EntryTrackFree(Entry* e)
+static void trackedEntryFree(Entry* entry)
 {
-    entryFreeCount++;
-    free(e);
+    g_entryFreeCount++;
+    free(entry);
 }
 
-void edgeCaseReferenceTypeTest()
+static Entry* makeEntry(int index, const char* name)
 {
-    EntriesListOptions options = {0};
-    options.defaultValue = NULL;
-    options.equalsFn = EntryEquals;
-    options.freeFn = EntryTrackFree;
-
-    EntriesList list;
-    EntriesListInit(&list, options);
-
-    for (int i = 0; i < 16; i++)
-    {
-        Entry* entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = i;
-        entry->name = "edge";
-        EntriesListAdd(&list, entry);
-    }
-
-    entryFreeCount = 0;
-    EntriesListRemoveAtRange(&list, 4, 4);
-    assert(list.count == 12);
-    assert(entryFreeCount == 4);
-
-    EntriesListClear(&list);
-    assert(list.count == 0);
-    assert(entryFreeCount == 16);
-
-    EntriesListFree(&list);
+    Entry* entry = (Entry*)malloc(sizeof(Entry));
+    TEST_ASSERT_NOT_NULL(entry);
+    entry->index = index;
+    entry->name = name;
+    return entry;
 }
 
-void referenceTypeTest()
+void test_int_list_get_returns_default_when_out_of_range(void)
 {
-    float start, end;
-    Entry** entries;
+    IntList list;
+    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
-    EntriesListOptions options = {0};
-    options.defaultValue = NULL;
-    options.equalsFn = EntryEquals;
-    options.freeFn = EntryFree;
+    TEST_ASSERT_EQUAL_INT(-1, IntListGet(&list, 0));
+    TEST_ASSERT_EQUAL_INT(-1, IntListGet(&list, 42));
 
-    EntriesList list;
-    EntriesListInit(&list, options);
+    IntListFree(&list);
+}
 
-    printf("--- Start reference type tests ---\n");
+void test_int_list_insert_remove_and_contains_work_together(void)
+{
+    IntList list;
+    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
-    printf("--- Start test 1: add %d objects ---\n", count);
-    entries = malloc(count * sizeof(Entry*));
-    start = getTime();
-    for(int i = 0; i < count; i++)
+    IntListAdd(&list, 2);
+    IntListAdd(&list, 4);
+    IntListInsert(&list, 0, 1);
+    IntListInsert(&list, 2, 3);
+
+    TEST_ASSERT_EQUAL_INT(4, list.count);
+    TEST_ASSERT_EQUAL_INT(1, IntListGet(&list, 0));
+    TEST_ASSERT_EQUAL_INT(2, IntListGet(&list, 1));
+    TEST_ASSERT_EQUAL_INT(3, IntListGet(&list, 2));
+    TEST_ASSERT_EQUAL_INT(4, IntListGet(&list, 3));
+    TEST_ASSERT_TRUE(IntListContains(&list, 3));
+
+    IntListRemove(&list, 2);
+    IntListRemoveAt(&list, 0);
+
+    TEST_ASSERT_EQUAL_INT(2, list.count);
+    TEST_ASSERT_EQUAL_INT(3, IntListGet(&list, 0));
+    TEST_ASSERT_EQUAL_INT(4, IntListGet(&list, 1));
+    IntListFree(&list);
+}
+
+void test_int_list_range_operations_copy_and_reverse(void)
+{
+    const int values[] = { 1, 2, 3, 4, 5 };
+    const int range[] = { 9, 8, 7 };
+    int copy[10] = {0};
+    IntList list;
+    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    IntListAddRange(&list, 5, (int*)values);
+    IntListInsertRange(&list, 2, 3, (int*)range);
+    TEST_ASSERT_EQUAL_INT(8, list.count);
+    TEST_ASSERT_EQUAL_INT(9, IntListGet(&list, 2));
+    TEST_ASSERT_EQUAL_INT(7, IntListGet(&list, 4));
+
+    IntListRemoveAtRange(&list, 2, 3);
+    TEST_ASSERT_EQUAL_INT(5, list.count);
+
+    IntListReverse(&list);
+    TEST_ASSERT_EQUAL_INT(5, IntListGet(&list, 0));
+    TEST_ASSERT_EQUAL_INT(1, IntListGet(&list, 4));
+
+    IntListCopyTo(&list, copy, 2);
+    TEST_ASSERT_EQUAL_INT(5, copy[2]);
+    TEST_ASSERT_EQUAL_INT(1, copy[6]);
+
+    int* array = IntListToArray(&list);
+    TEST_ASSERT_NOT_NULL(array);
+    TEST_ASSERT_EQUAL_INT(5, array[0]);
+    TEST_ASSERT_EQUAL_INT(1, array[4]);
+    free(array);
+    IntListFree(&list);
+}
+
+void test_int_list_sort_orders_values_ascending(void)
+{
+    const int values[] = { 9, 1, 5, 3, 7, 2 };
+    IntList list;
+    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    IntListAddRange(&list, 6, (int*)values);
+    IntListSort(&list, intCompare);
+
+    for (int i = 1; i < list.count; i++)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = i;
-        entry->name = "entry";
-        EntriesListAdd(&list, entry);
-        assert(list.items[list.count - 1]->index == i);
-        entries[i] = entry;
-    }
-    end = getTime();
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: add %d objects ---\n", count);
-
-    printf("\n");
-
-    printf("--- Start test 2: contains %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count / 2; i++)
-    {
-        Entry *entry = entries[rand() % count];
-        assert(EntriesListContains(&list, entry));
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count / 2);
-
-    free(entries);
-
-    printf("\n");
-
-    printf("--- Start test 3: insert %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = rand() % list.count;
-        entry->name = "entry";
-        EntriesListInsert(&list, entry->index, entry);
-        assert(list.items[entry->index]->index == entry->index);
-    }
-    end = getTime();
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: insert %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 4: remove by index %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int index = rand() % (list.count - 1);
-        Entry* entry = list.items[index + 1];
-        EntriesListRemoveAt(&list, index);
-        assert(EntryEquals(list.items[index], entry));
-    }
-    end = getTime();
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 4: remove by index %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 5: remove by value %d objects ---\n", count / 2);
-    
-    entries = malloc((count / 2) * sizeof(Entry*));
-    for(int i = 0; i < count / 2; i++)
-    {
-        Entry* entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = rand() % list.count;
-        entry->name = "negative";
-        EntriesListInsert(&list, entry->index, entry);
-        entries[i] = entry;
-    }
-    start = getTime();
-    for(int i = 0; i < count / 2; i++)
-        EntriesListRemove(&list, entries[i]);
-    end = getTime();
-    for(int i = 0; i < list.count; i++)
-        assert(strcmp(list.items[i]->name, "negative") != 0);
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 5: remove by value %d objects ---\n", count / 2);
-
-    free(entries);
-
-    printf("\n");
-
-    const int rangeCount = count < 50000 ? count / 2 : 50000;
-    const int rangeAt = list.count > 100 ? 100 : 0;
-
-    Entry** rangeValues = (Entry**)malloc(rangeCount * sizeof(Entry*));
-    for(int i = 0; i < rangeCount; i++)
-    {
-        rangeValues[i] = malloc(sizeof(Entry));
-        rangeValues[i]->index = -i;
-        rangeValues[i]->name = "insert range";
+        TEST_ASSERT_TRUE(list.items[i - 1] <= list.items[i]);
     }
 
-    printf("--- Start test 6: insert range %d objects ---\n", rangeCount);
-    start = getTime();
-    EntriesListInsertRange(&list, rangeAt, rangeCount, rangeValues);
-    end = getTime();
-    for(int i = 0; i < rangeCount; i++)
-        assert(EntryEquals(list.items[rangeAt + i], rangeValues[i]));
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 6: insert range %d objects ---\n", rangeCount);
+    IntListFree(&list);
+}
 
-    printf("\n");
+void test_int_list_stress_insert_range_and_remove_range(void)
+{
+    IntList list;
+    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
-    printf("--- Start test 7: remove range %d objects ---\n", rangeCount);
-    start = getTime();
-    EntriesListRemoveAtRange(&list, rangeAt, rangeCount);
-    end = getTime();
-    for(int i = 0; i < rangeCount && rangeAt + i < list.count; i++)
-        assert(list.items[rangeAt + i]->index >= 0);
-    printf("List count and capacity: (%d, %d)\n", list.count, list.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 7: remove range %d objects ---\n", rangeCount);
+    for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
+    {
+        IntListAdd(&list, i);
+    }
 
-    free(rangeValues);
+    int* range = (int*)malloc((size_t)SHL_TEST_MEDIUM_COUNT * sizeof(int));
+    TEST_ASSERT_NOT_NULL(range);
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
+    {
+        range[i] = -i;
+    }
 
-    printf("\n");
+    IntListInsertRange(&list, 32, SHL_TEST_MEDIUM_COUNT, range);
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT + SHL_TEST_MEDIUM_COUNT, list.count);
+    TEST_ASSERT_EQUAL_INT(0, IntListGet(&list, 32));
+    TEST_ASSERT_EQUAL_INT(-(SHL_TEST_MEDIUM_COUNT - 1), IntListGet(&list, 32 + SHL_TEST_MEDIUM_COUNT - 1));
 
-    printf("--- Start test 8: sorting %d objects ---\n", list.count);
-    start = getTime();
-    EntriesListSort(&list, EntryCompare);
-    end = getTime();
-    for(int i = 1; i < list.count; i++)
-        assert(EntryCompare(list.items[i - 1], list.items[i]) <= 0);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 8: sorting %d objects ---\n", list.count);
+    IntListRemoveAtRange(&list, 32, SHL_TEST_MEDIUM_COUNT);
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT, list.count);
+    TEST_ASSERT_EQUAL_INT(32, IntListGet(&list, 32));
 
-    printf("--- End reference type tests ---\n");
-    EntriesListFree(&list);
+    free(range);
+    IntListFree(&list);
+}
+
+void test_entry_list_set_releases_replaced_item(void)
+{
+    EntryList list;
+    EntryListInit(&list, (EntryListOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+
+    EntryListAdd(&list, makeEntry(1, "one"));
+    EntryListAdd(&list, makeEntry(2, "two"));
+    EntryListSet(&list, 0, makeEntry(3, "three"));
+
+    TEST_ASSERT_EQUAL_INT(1, g_entryFreeCount);
+    TEST_ASSERT_EQUAL_INT(3, list.items[0]->index);
+    EntryListFree(&list);
+}
+
+void test_entry_list_remove_range_and_clear_call_free_function(void)
+{
+    EntryList list;
+    EntryListInit(&list, (EntryListOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+
+    for (int i = 0; i < 10; i++)
+    {
+        EntryListAdd(&list, makeEntry(i, "entry"));
+    }
+
+    EntryListRemoveAtRange(&list, 3, 4);
+    TEST_ASSERT_EQUAL_INT(4, g_entryFreeCount);
+    TEST_ASSERT_EQUAL_INT(6, list.count);
+
+    EntryListClear(&list);
+    TEST_ASSERT_EQUAL_INT(10, g_entryFreeCount);
+    TEST_ASSERT_EQUAL_INT(0, list.count);
+    EntryListFree(&list);
+}
+
+void test_entry_list_integration_sorts_remaining_entries_after_mutations(void)
+{
+    EntryList list;
+    EntryListInit(&list, (EntryListOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = entryFree });
+
+    EntryListAdd(&list, makeEntry(5, "e"));
+    EntryListAdd(&list, makeEntry(2, "b"));
+    EntryListInsert(&list, 1, makeEntry(4, "d"));
+    EntryListInsert(&list, 0, makeEntry(1, "a"));
+    EntryListAdd(&list, makeEntry(3, "c"));
+    EntryListRemove(&list, &(Entry){ .index = 4, .name = "d" });
+
+    TEST_ASSERT_EQUAL_INT(4, list.count);
+    EntryListSort(&list, entryCompare);
+
+    for (int i = 1; i < list.count; i++)
+    {
+        TEST_ASSERT_TRUE(entryCompare(list.items[i - 1], list.items[i]) <= 0);
+    }
+
+    TEST_ASSERT_EQUAL_INT(1, list.items[0]->index);
+    TEST_ASSERT_EQUAL_INT(5, list.items[3]->index);
+    EntryListFree(&list);
 }
 
 void setUp(void)
 {
+    g_entryFreeCount = 0;
 }
 
 void tearDown(void)
@@ -442,13 +249,14 @@ void tearDown(void)
 
 int main(void)
 {
-    /* initialize random seed: */
-    srand(time(NULL));
-
     UNITY_BEGIN();
-    RUN_TEST(valueTypeTest);
-    RUN_TEST(edgeCaseValueTypeTest);
-    RUN_TEST(referenceTypeTest);
-    RUN_TEST(edgeCaseReferenceTypeTest);
+    RUN_TEST(test_int_list_get_returns_default_when_out_of_range);
+    RUN_TEST(test_int_list_insert_remove_and_contains_work_together);
+    RUN_TEST(test_int_list_range_operations_copy_and_reverse);
+    RUN_TEST(test_int_list_sort_orders_values_ascending);
+    RUN_TEST(test_int_list_stress_insert_range_and_remove_range);
+    RUN_TEST(test_entry_list_set_releases_replaced_item);
+    RUN_TEST(test_entry_list_remove_range_and_clear_call_free_function);
+    RUN_TEST(test_entry_list_integration_sorts_remaining_entries_after_mutations);
     return UNITY_END();
 }

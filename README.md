@@ -27,6 +27,9 @@ The test suite is built with [nob](https://github.com/tsoding/nob.h) and uses th
 ```sh
 cc -std=c99 -Wall -Wextra nob.c -o nob
 ./nob test
+./nob test all
+./nob test wstr_test
 ./nob asan
+./nob asan array_test
 ./nob valgrind
 ```

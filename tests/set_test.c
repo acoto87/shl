@@ -1,303 +1,206 @@
-
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <stdio.h>
 #include <string.h>
-#include <assert.h>
-#include <ctype.h>
 
 #include "../set.h"
 #include "test_common.h"
 
-#if defined(SHL_LEAK_CHECK)
-static const int32_t count = 5000;
-#else
-static const int32_t count = 100000;
-#endif
-
-static float getTime()
+static uint32_t hashInt(const int x)
 {
-    return (float)clock() / CLOCKS_PER_SEC;
+    return (uint32_t)x;
 }
 
-// value type tests
-uint32_t hashInt(const int x)
-{
-    return x;
-}
-
-bool equalsInt(const int a, const int b)
+static bool equalsInt(const int a, const int b)
 {
     return a == b;
 }
 
-shlDeclareSet(IntSet, int)
-shlDefineSet(IntSet, int)
-
 static uint32_t collideInt(const int x)
 {
     (void)x;
-    return 1;
+    return 1u;
 }
 
-static int setFreeCount = 0;
-
-void freeTrackedInt(int value)
+static uint32_t fnv32(const char* data)
 {
-    setFreeCount += value;
-}
-
-shlDeclareSet(CollisionSet, int)
-shlDefineSet(CollisionSet, int)
-
-void collisionAndEdgeCaseValueTest()
-{
-    CollisionSetOptions options = (CollisionSetOptions){0};
-    options.hashFn = collideInt;
-    options.equalsFn = equalsInt;
-    options.defaultValue = -1;
-
-    CollisionSet set;
-    CollisionSetInit(&set, options);
-
-    for (int i = 0; i < 64; i++)
-        assert(CollisionSetAdd(&set, i));
-
-    CollisionSetRemove(&set, 0);
-    assert(!CollisionSetContains(&set, 0));
-    for (int i = 1; i < 64; i++)
-        assert(CollisionSetContains(&set, i));
-
-    CollisionSetRemove(&set, 9999);
-    assert(set.count == 63);
-
-    CollisionSetFree(&set);
-}
-
-void valueTypeTest()
-{
-    float start, end;
-
-    IntSetOptions options = (IntSetOptions){0};
-    options.hashFn = hashInt;
-    options.equalsFn = equalsInt;
-    options.defaultValue = 0;
-
-    IntSet set;
-    IntSetInit(&set, options);
-
-    printf("--- Start test 1: add %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
+    uint32_t hash = 0x811c9dc5u;
+    while (*data != 0)
     {
-        int x = i;
-        assert(IntSetAdd(&set, x));
-        assert(set.count == i + 1);
+        hash = ((uint32_t)(unsigned char)(*data++) ^ hash) * 0x01000193u;
     }
-    end = getTime();
-    printf("Set count and capacity: (%d, %d)\n", set.count, set.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: add %d objects ---\n", count);
-
-    printf("\n");
-
-    printf("--- Start test 2: contains %d objects ---\n", count/2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int x = rand() % count;
-        assert(IntSetContains(&set, x));
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count/2);
-
-    printf("\n");
-
-    printf("--- Start test 3: add duplicated %d objects ---\n", count/2);
-    start = getTime();
-    int32_t prevCount = set.count;
-    for(int i = 0; i < count/2; i++)
-    {
-        int x = rand() % set.count;
-        assert(!IntSetAdd(&set, x));
-        assert(set.count == prevCount);
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: add duplicated %d objects ---\n", count/2);
-
-    printf("\n");
-
-    printf("--- Start test 4: remove %d objects ---\n", count/2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int x = rand() % set.count;
-        IntSetRemove(&set, x);
-        assert(!IntSetContains(&set, x));
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 4: remove %d objects ---\n", count/2);
-
-    IntSetFree(&set);
-}
-
-// reference type tests
-#define FNV_PRIME_32 0x01000193
-#define FNV_OFFSET_32 0x811c9dc5
-
-uint32_t fnv32(const char* data) 
-{
-    uint32_t hash = FNV_OFFSET_32;
-    while(*data != 0)
-        hash = (*data++ ^ hash) * FNV_PRIME_32;
 
     return hash;
 }
 
-bool equalsStr(const char *s1, const char *s2)
+static bool equalsStr(const char* left, const char* right)
 {
-    return strcmp(s1, s2) == 0;
+    return strcmp(left, right) == 0;
 }
 
-shlDeclareSet(SSet, char*)
-shlDefineSet(SSet, char*)
+shlDeclareSet(IntSet, int)
+shlDefineSet(IntSet, int)
+shlDeclareSet(CollisionSet, int)
+shlDefineSet(CollisionSet, int)
+shlDeclareSet(StringSet, char*)
+shlDefineSet(StringSet, char*)
+shlDeclareSet(TrackedIntSet, int)
+shlDefineSet(TrackedIntSet, int)
 
-char* generateString()
+static int g_setFreeCount = 0;
+
+static void freeTrackedInt(int value)
 {
-    const int stringLength = 50;
-    char *s = (char*)calloc(stringLength + 1, sizeof(char));
-    
-    for(int i = 0; i < 50; i++)
-        s[i] = rand() % 27 + 97;
-    
-    return s;
+    g_setFreeCount += value;
 }
 
-void freeStr(char* str)
+static char* makeStringFromIndex(int value)
 {
-    free((void*)str);
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "value-%d", value);
+    size_t length = strlen(buffer);
+    char* text = (char*)malloc(length + 1u);
+    TEST_ASSERT_NOT_NULL(text);
+    memcpy(text, buffer, length + 1u);
+    return text;
 }
 
-shlDeclareSet(TrackedSet, int)
-shlDefineSet(TrackedSet, int)
-
-void clearEdgeCaseTest()
+static void freeStr(char* str)
 {
-    TrackedSetOptions options = (TrackedSetOptions){0};
-    options.hashFn = collideInt;
-    options.equalsFn = equalsInt;
-    options.defaultValue = 0;
-    options.freeFn = freeTrackedInt;
-
-    TrackedSet set;
-    TrackedSetInit(&set, options);
-
-    assert(TrackedSetAdd(&set, 1));
-    assert(TrackedSetAdd(&set, 10));
-    assert(TrackedSetAdd(&set, 100));
-    TrackedSetRemove(&set, 10);
-
-    setFreeCount = 0;
-    TrackedSetClear(&set);
-    assert(set.count == 0);
-    assert(setFreeCount == 101);
-    assert(!TrackedSetContains(&set, 1));
-    assert(!TrackedSetContains(&set, 100));
-
-    TrackedSetFree(&set);
+    free(str);
 }
 
-void referenceTypeTest()
+void test_int_set_add_contains_and_rejects_duplicates(void)
 {
-    float start, end;
+    IntSet set;
+    IntSetInit(&set, (IntSetOptions){ .defaultValue = 0, .hashFn = hashInt, .equalsFn = equalsInt });
 
-    printf("--- Start generating %d tests strings ---\n", count);
-    start = getTime();
-    char *strings[100000];
-    for(int i = 0; i < count; i++)
-        strings[i] = generateString();
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End generating %d tests strings ---\n", count);
+    TEST_ASSERT_TRUE(IntSetAdd(&set, 1));
+    TEST_ASSERT_TRUE(IntSetAdd(&set, 2));
+    TEST_ASSERT_TRUE(IntSetAdd(&set, 3));
+    TEST_ASSERT_FALSE(IntSetAdd(&set, 2));
+    TEST_ASSERT_EQUAL_INT(3, set.count);
+    TEST_ASSERT_TRUE(IntSetContains(&set, 1));
+    TEST_ASSERT_TRUE(IntSetContains(&set, 2));
+    TEST_ASSERT_FALSE(IntSetContains(&set, 99));
 
-    printf("\n\n");
+    IntSetFree(&set);
+}
 
-    SSetOptions options = (SSetOptions){0};
-    options.hashFn = fnv32;
-    options.equalsFn = equalsStr;
-    options.defaultValue = NULL;
-    options.freeFn = freeStr;
+void test_collision_set_remove_preserves_other_entries(void)
+{
+    CollisionSet set;
+    CollisionSetInit(&set, (CollisionSetOptions){ .defaultValue = -1, .hashFn = collideInt, .equalsFn = equalsInt });
 
-    SSet set;
-    SSetInit(&set, options);
-
-    printf("--- Start test 1: add %d strings ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
+    for (int i = 0; i < 64; i++)
     {
-        char *str = strings[i];
-        assert(SSetAdd(&set, str));
-        assert(set.count == i + 1);
+        TEST_ASSERT_TRUE(CollisionSetAdd(&set, i));
     }
-    end = getTime();
-    printf("Set count and capacity: (%d, %d)\n", set.count, set.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: add %d strings ---\n", count);
 
-    printf("\n");
-
-    printf("--- Start test 2: contains %d objects ---\n", count/2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
+    CollisionSetRemove(&set, 0);
+    TEST_ASSERT_FALSE(CollisionSetContains(&set, 0));
+    for (int i = 1; i < 64; i++)
     {
-        int index = rand() % count;
-        assert(SSetContains(&set, strings[index]));
+        TEST_ASSERT_TRUE(CollisionSetContains(&set, i));
     }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count/2);
+    TEST_ASSERT_EQUAL_INT(63, set.count);
 
-    printf("\n");
+    CollisionSetFree(&set);
+}
 
-    printf("--- Start test 3: add duplicated %d objects ---\n", count/2);
-    start = getTime();
-    int32_t prevCount = set.count;
-    for(int i = 0; i < count/2; i++)
+void test_int_set_stress_add_and_remove_halves_count(void)
+{
+    IntSet set;
+    IntSetInit(&set, (IntSetOptions){ .defaultValue = 0, .hashFn = hashInt, .equalsFn = equalsInt });
+
+    for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
     {
-        int index = rand() % set.count;
-        assert(!SSetAdd(&set, strings[index]));
-        assert(set.count == prevCount);
+        TEST_ASSERT_TRUE(IntSetAdd(&set, i));
     }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: add duplicated %d objects ---\n", count/2);
 
-    printf("\n");
-
-    printf("--- Start test 4: remove %d objects ---\n", count/2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
+    for (int i = 0; i < SHL_TEST_STRESS_COUNT; i += 2)
     {
-        char* key = strings[i];
-        char* probe = (char*)calloc(strlen(key) + 1, sizeof(char));
-        strcpy(probe, key);
-        SSetRemove(&set, key);
-        assert(!SSetContains(&set, probe));
-        strings[i] = NULL;
-        free(probe);
+        IntSetRemove(&set, i);
+        TEST_ASSERT_FALSE(IntSetContains(&set, i));
     }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 4: remove %d objects ---\n", count/2);
 
-    SSetFree(&set);
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT / 2, set.count);
+    for (int i = 1; i < SHL_TEST_STRESS_COUNT; i += 2)
+    {
+        TEST_ASSERT_TRUE(IntSetContains(&set, i));
+    }
+
+    IntSetFree(&set);
+}
+
+void test_tracked_set_clear_calls_free_function_for_remaining_items(void)
+{
+    TrackedIntSet set;
+    TrackedIntSetInit(&set, (TrackedIntSetOptions){ .defaultValue = 0, .hashFn = collideInt, .equalsFn = equalsInt, .freeFn = freeTrackedInt });
+
+    TEST_ASSERT_TRUE(TrackedIntSetAdd(&set, 1));
+    TEST_ASSERT_TRUE(TrackedIntSetAdd(&set, 10));
+    TEST_ASSERT_TRUE(TrackedIntSetAdd(&set, 100));
+    TrackedIntSetRemove(&set, 10);
+
+    TEST_ASSERT_EQUAL_INT(10, g_setFreeCount);
+    TrackedIntSetClear(&set);
+
+    TEST_ASSERT_EQUAL_INT(111, g_setFreeCount);
+    TEST_ASSERT_EQUAL_INT(0, set.count);
+    TrackedIntSetFree(&set);
+}
+
+void test_string_set_contains_equivalent_key_and_releases_removed_values(void)
+{
+    StringSet set;
+    StringSetInit(&set, (StringSetOptions){ .defaultValue = NULL, .hashFn = fnv32, .equalsFn = equalsStr, .freeFn = freeStr });
+
+    char* alpha = makeStringFromIndex(1);
+    char* beta = makeStringFromIndex(2);
+    char* gamma = makeStringFromIndex(3);
+    char probe[32];
+
+    TEST_ASSERT_TRUE(StringSetAdd(&set, alpha));
+    TEST_ASSERT_TRUE(StringSetAdd(&set, beta));
+    TEST_ASSERT_TRUE(StringSetAdd(&set, gamma));
+
+    strcpy(probe, beta);
+    TEST_ASSERT_TRUE(StringSetContains(&set, probe));
+
+    StringSetRemove(&set, probe);
+    TEST_ASSERT_FALSE(StringSetContains(&set, probe));
+    TEST_ASSERT_EQUAL_INT(2, set.count);
+
+    StringSetFree(&set);
+}
+
+void test_string_set_integration_bulk_unique_insert_then_duplicate_probe(void)
+{
+    StringSet set;
+    StringSetInit(&set, (StringSetOptions){ .defaultValue = NULL, .hashFn = fnv32, .equalsFn = equalsStr, .freeFn = freeStr });
+
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
+    {
+        TEST_ASSERT_TRUE(StringSetAdd(&set, makeStringFromIndex(i)));
+    }
+
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i += 5)
+    {
+        char* duplicate = makeStringFromIndex(i);
+        TEST_ASSERT_FALSE(StringSetAdd(&set, duplicate));
+        freeStr(duplicate);
+    }
+
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT, set.count);
+    TEST_ASSERT_TRUE(StringSetContains(&set, "value-0"));
+    TEST_ASSERT_TRUE(StringSetContains(&set, "value-255"));
+
+    StringSetFree(&set);
 }
 
 void setUp(void)
 {
+    g_setFreeCount = 0;
 }
 
 void tearDown(void)
@@ -306,13 +209,12 @@ void tearDown(void)
 
 int main(void)
 {
-    /* initialize random seed: */
-    srand(time(NULL));
-
     UNITY_BEGIN();
-    RUN_TEST(valueTypeTest);
-    RUN_TEST(collisionAndEdgeCaseValueTest);
-    RUN_TEST(referenceTypeTest);
-    RUN_TEST(clearEdgeCaseTest);
+    RUN_TEST(test_int_set_add_contains_and_rejects_duplicates);
+    RUN_TEST(test_collision_set_remove_preserves_other_entries);
+    RUN_TEST(test_int_set_stress_add_and_remove_halves_count);
+    RUN_TEST(test_tracked_set_clear_calls_free_function_for_remaining_items);
+    RUN_TEST(test_string_set_contains_equivalent_key_and_releases_removed_values);
+    RUN_TEST(test_string_set_integration_bulk_unique_insert_then_duplicate_probe);
     return UNITY_END();
 }

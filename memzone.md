@@ -1,55 +1,79 @@
 # Memzone allocator
 
-A simple memory allocator that uses a linked list of blocks to manage allocated blocks of memory.
+A simple non-moving memory allocator that uses a linked list of blocks to manage allocated blocks of memory.
 
 This is a custom implementation following the ideas of the memory allocator used in DOOM and explained it in the [Fabien Sanglard's Game Engine Black Book for Doom](http://fabiensanglard.net/gebb/index.html).
 
 Include the `#define SHL_MEMORY_ZONE_IMPLEMENTATION` before one of the `#include memzone.h` to get the implementation of the functions. Otherwise, only the declarations will be included.
 
+Publicly, `memzone_t` is an opaque handle. Introspection goes through helper functions such as `mz_maxSize()`, `mz_usedSize()`, `mz_blockCount()`, `mz_usableFreeSize()`, `mz_fragmentation()`, and `mz_validate()`.
+
 A memory _zone_ is defined with the following information:
 
-* `usedSize`: how much space is used without including blocks data
+* `usedSize`: how much space is currently unavailable for new allocations, including allocator metadata
 * `maxSize`: the max allowed size that can be allocated
 * `rover`: a pointer to a free block that is used when allocating
 * `blockList`: list of blocks, here is where the requested memory begins
 
-It maintains a circular double linked-list of _blocks_ with minimal information necessary to allocate and deallocate memory. Each block as the following information:
+It maintains a circular double linked-list of _blocks_ with minimal information necessary to allocate and deallocate memory. Each block has the following information:
 
 * `size`: size of the block
-* `type`: the type of the block
-* `user`: a pointer to the pointer returned to the user
+* `user`: the pointer returned to the user for allocated blocks, or `NULL` when the block is free
 * `next`: pointer to the next block in the list
 * `prev`: pointers to previous block in the list
 
-The type of a block is one of the following values:
+The information of the headers of the _zone_ and _blocks_ are part of the `maxSize` passed at initialization time. Requested allocation sizes are rounded up to the allocator alignment returned by `mz_alignment()`, and block headers are aligned as well so returned pointers are suitable for general runtime data. Callers that need stricter placement can use `mz_allocAligned()` with `16`, `32`, or `64` byte alignment.
 
-* `MEM_STATIC`: default block type, represent a normal block. _For now this is the only type of blocks used, in further development the other types of blocks will be consider.
-* `MEM_PURGE`: block type that can be reused when allocating, even if it's used, normally this type of block is created when free some STATIC block
-* `MEM_FIXED`: block type that is fixed at the start of the app and will last the entire app life-cycle and it can't be defragmented
+At the beginning, when the _zone_ is initialized there is only one _block_ with all the free memory, except for the information of the header of the _zone_ and the header of the _block_. When the user allocates memory, the allocator finds the next suitable free block, splits it only when the remainder can form a valid aligned block, and returns a stable pointer to the payload. When the user deallocates a pointer, the allocator finds the _block_ for that pointer, marks it as free, and merges it with sibling _blocks_ if they are also empty. Invalid frees are ignored for allocator safety, but they are now reported through the runtime diagnostics hook.
 
-The information of the headers of the _zone_ and _blocks_ are part of the `maxSize` passed at initialization time. That's it, if the user is considering a 1MB zone, the information of the headers will occupy part of that 1MB. The size of the header of the _zone_ is 20 bytes and the size of the header of each block is 32 bytes. However, when the user try to allocate a pointer of a given size, the _block_ that hold that pointer will have enough space to hold the requested size. For instance, if the user allocates 256 bytes, the _block_ holding the pointer for that size is 32 + 256 bytes long.
+The validated structural invariants are:
 
-At the beginning, when the _zone_ is initialized there is only one _block_ with all the free memory, except for the information of the header of the _zone_ and the header of the _block_. When a the user try to allocate memory, the allocator finds the first block that is big enough to hold the space needed, split the _block_ if necessary and return the pointer to the user. When the user try to deallocate a pointer, the allocator finds the _block_ for that pointer, and mark it as free, merging it with the sibilings _blocks_ if they are also empty.
+* blocks cover the zone payload span exactly with no gaps or overlaps
+* there are never two contiguous free `memblock_t` entries because free-time coalescing must merge them
+* all block headers and returned pointers satisfy the allocator alignment
+
+This allocator is intended to be used as a per-thread runtime allocator. It is not internally synchronized, and it does not move live allocations.
 
 Example:
 ```c
+#define MZ_MALLOC(sz) custom_malloc(sz)
+#define MZ_FREE(p) custom_free(p)
+#define MZ_DEBUG
 #define SHL_MEMORY_ZONE_IMPLEMENTATION
 #include "memzone.h"
 ```
+
+Customization points:
+
+* `MZ_MALLOC(sz)`: replaces the allocator used by `mz_init()`
+* `MZ_FREE(p)`: replaces the deallocator used by `mz_destroy()`
+* `MZ_DEBUG`: enables internal `MZ_ASSERT(...)` checks after allocator mutations
+* `MZ_ASSERT(expr)`: optional custom assert hook used when `MZ_DEBUG` is enabled
 
 The memory allocator allows the following operations:
 
 | Function | Description | Return type |
 | --- | --- | --- |
-| `mzInit`(size_t maxSize) | Creates and initialize a new memory allocator structure with the specified `maxSize`. | memzone_t* |
-| `mzAlloc`(memzone_t* zone, size_t size) | Allocates a block of memory on the specified `memzone_t` object and a given `size` | void* |
-| `mzFree`(memzone_t* zone, void* p) | Free a previously allocated block of memory. | void |
-| `mzIsBlockEmpty`(memblock_t* block) | A macro to determine if the specified block is empty. It will expand to `((block)->user == NULL)` | bool |
-| `mzGetNumberOfBlocks`(memzone_t* zone) | Gets the number of blocks in the allocator. | int32_t |
-| `mzGetUsableFreeSize`(memzone_t* zone) | Gets the usable free size on the allocator. |size_t |
-| `mzGetFragPercentage`(memzone_t* zone) | Gets the fragmentation percentage of the allocator. | float |
-| `mzDefrag`(memzone_t* zone) | Defragment the allocator. _This functionality is still in development_. | void |
-| `mzPrint`(memzone_t* zone, bool printBlocks, bool printMap) | Prints the allocator data to `stdout`. | void |
+| `mz_alignment`(void) | Returns the allocator alignment used for payloads and headers. | size_t |
+| `mz_maxSize`(const memzone_t* zone) | Returns the total zone size passed at initialization, or `0` for `NULL`. | size_t |
+| `mz_usedSize`(const memzone_t* zone) | Returns the currently unavailable bytes including allocator metadata, or `0` for `NULL`. | size_t |
+| `mz_init`(size_t maxSize) | Creates and initializes a memory zone with the specified `maxSize`. | memzone_t* |
+| `mz_destroy`(memzone_t* zone) | Releases a zone previously created with `mz_init`. | void |
+| `mz_reset`(memzone_t* zone) | Resets a zone back to a single free block without releasing its backing memory. | void |
+| `mz_alloc`(memzone_t* zone, size_t size) | Allocates a block of memory from the specified zone. Size `0` returns `NULL`. | void* |
+| `mz_allocAligned`(memzone_t* zone, size_t size, size_t alignment) | Allocates a block with explicit `16`, `32`, or `64` byte pointer alignment. Invalid alignments return `NULL`. | void* |
+| `mz_setReporter`(memzone_t* zone, mz_reporter_t reporter, void* userData) | Replaces the default `stderr` diagnostics hook for allocation failures, invalid frees, and validation failures. Pass `NULL` to silence reports. | void |
+| `mz_free`(memzone_t* zone, void* p) | Frees a previously allocated block of memory. Unknown pointers are ignored. | void |
+| `mz_contains`(const memzone_t* zone, const void* p) | Returns whether `p` currently belongs to a live allocation in the zone. | bool |
+| `mz_allocationSize`(const memzone_t* zone, const void* p) | Returns the aligned size reserved for a live allocation, or `0` if not found. | size_t |
+| `mz_validate`(const memzone_t* zone) | Validates the zone internal structure and accounting invariants. | bool |
+| `mz_blockCount`(const memzone_t* zone) | Gets the number of blocks in the allocator. | int32_t |
+| `mz_usableFreeSize`(const memzone_t* zone) | Gets the usable free size on the allocator. | size_t |
+| `mz_fragmentation`(const memzone_t* zone) | Gets the fragmentation percentage of the allocator. | float |
+
+The diagnostics hook receives an `mz_report_t` category plus a context pointer. Allocation failures use a `NULL` context, invalid frees report the rejected pointer as context, and validation failures report the block or zone that failed the invariant being checked.
+
+When `MZ_DEBUG` is enabled, allocator mutations assert `mz_validate(zone)` internally after initialization, reset, allocation, and free.
 
 Example:
 ```c
@@ -84,35 +108,31 @@ int main()
     srand(time(NULL));
 
     size_t zoneSize = 1024 * 1024; // 1MB
-    memzone_t* zone = mzInit(zoneSize);
+    memzone_t* zone = mz_init(zoneSize);
     if (!zone)
     {
         printf("ERROR: Couldn't allocate %d bytes\n", zoneSize);
         return -1;
     }
 
-    Entity** entities = (Entity**)mzAlloc(zone, sizeOfArray);
+    Entity** entities = (Entity**)mz_alloc(zone, sizeOfArray);
     for (int32_t i = 0; i < ENTITY_COUNT; i++)
     {
-        entities[i] = (Entity*)mzAlloc(zone, sizeof(Entity));
+        entities[i] = (Entity*)mz_alloc(zone, sizeof(Entity));
         entities[i]->id = i;
     }
-
-    mzPrint(zone, false, true);
 
     for (int32_t i = 0; i < ENTITY_COUNT / 2; i++)
     {
         int32_t index = randabi(0, ENTITY_COUNT - 1);
         if (entities[index])
         {
-            mzFree(zone, entities[index]);
+            mz_free(zone, entities[index]);
             entities[index] = NULL;
         }
     }
 
-    mzPrint(zone, false, true);
-
-    free(zone);
+    mz_destroy(zone);
     return 0;
 }
 ```

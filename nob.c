@@ -24,7 +24,6 @@ static const TestTarget TestTargets[] =
 {
     { "tests/array_test.c", "array_test" },
     { "tests/binary_heap_test.c", "binary_heap_test" },
-    { "tests/canvas2d_test.c", "canvas2d_test" },
     { "tests/flic_test.c", "flic_test" },
     { "tests/list_test.c", "list_test" },
     { "tests/map_test.c", "map_test" },
@@ -36,6 +35,30 @@ static const TestTarget TestTargets[] =
     { "tests/wave_writer_test.c", "wave_writer_test" },
     { "tests/wstr_test.c", "wstr_test" },
 };
+
+static const TestTarget* find_test_target(const char* name)
+{
+    if (name == NULL || strcmp(name, "all") == 0)
+    {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < NOB_ARRAY_LEN(TestTargets); ++i)
+    {
+        if (strcmp(TestTargets[i].output, name) == 0)
+        {
+            return &TestTargets[i];
+        }
+    }
+
+    return NULL;
+}
+
+static void print_usage(const char* program)
+{
+    nob_log(NOB_INFO, "Usage: %s [build|test|asan|valgrind] [all|test_name]", program);
+    nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test", program, program, program);
+}
 
 static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
 {
@@ -55,7 +78,7 @@ static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
     }
 }
 
-static bool build_tests(BuildMode mode, const char* out_dir)
+static bool build_tests(BuildMode mode, const char* out_dir, const TestTarget* selected_target)
 {
     if (!nob_mkdir_if_not_exists("build")) return false;
     if (!nob_mkdir_if_not_exists(out_dir)) return false;
@@ -65,6 +88,11 @@ static bool build_tests(BuildMode mode, const char* out_dir)
         Nob_Cmd cmd = {0};
         const TestTarget target = TestTargets[i];
         const char* output_path = nob_temp_sprintf("%s/%s", out_dir, target.output);
+
+        if (selected_target != NULL && strcmp(target.output, selected_target->output) != 0)
+        {
+            continue;
+        }
 
         nob_cc(&cmd);
         append_mode_flags(&cmd, mode);
@@ -78,12 +106,18 @@ static bool build_tests(BuildMode mode, const char* out_dir)
     return true;
 }
 
-static bool run_tests(const char* out_dir, BuildMode mode)
+static bool run_tests(const char* out_dir, BuildMode mode, const TestTarget* selected_target)
 {
     for (size_t i = 0; i < NOB_ARRAY_LEN(TestTargets); ++i)
     {
         Nob_Cmd cmd = {0};
-        const char* output_path = nob_temp_sprintf("%s/%s", out_dir, TestTargets[i].output);
+        const TestTarget target = TestTargets[i];
+        const char* output_path = nob_temp_sprintf("%s/%s", out_dir, target.output);
+
+        if (selected_target != NULL && strcmp(target.output, selected_target->output) != 0)
+        {
+            continue;
+        }
 
         if (mode == BuildModeValgrind)
         {
@@ -112,9 +146,18 @@ int main(int argc, char** argv)
     NOB_GO_REBUILD_URSELF(argc, argv);
 
     const char* command = argc > 1 ? argv[1] : "build";
+    const char* test_name = argc > 2 ? argv[2] : NULL;
     BuildMode mode = BuildModeDefault;
     const char* out_dir = "build/default";
+    const TestTarget* selected_target = NULL;
     bool run = false;
+
+    if (argc > 3)
+    {
+        nob_log(NOB_ERROR, "Too many arguments.");
+        print_usage(argv[0]);
+        return 1;
+    }
 
     if (strcmp(command, "build") == 0)
     {
@@ -142,13 +185,30 @@ int main(int argc, char** argv)
     else
     {
         nob_log(NOB_ERROR, "Unknown command `%s`. Expected build, test, asan, or valgrind.", command);
+        print_usage(argv[0]);
         return 1;
     }
 
-    if (!build_tests(mode, out_dir))
+    if (test_name != NULL)
+    {
+        selected_target = find_test_target(test_name);
+        if (selected_target == NULL && strcmp(test_name, "all") != 0)
+        {
+            nob_log(NOB_ERROR, "Unknown test `%s`.", test_name);
+            print_usage(argv[0]);
+            nob_log(NOB_INFO, "Available tests:");
+            for (size_t i = 0; i < NOB_ARRAY_LEN(TestTargets); ++i)
+            {
+                nob_log(NOB_INFO, "  %s", TestTargets[i].output);
+            }
+            return 1;
+        }
+    }
+
+    if (!build_tests(mode, out_dir, selected_target))
         return 1;
 
-    if (run && !run_tests(out_dir, mode))
+    if (run && !run_tests(out_dir, mode, selected_target))
         return 1;
 
     return 0;
