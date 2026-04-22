@@ -2083,6 +2083,44 @@ static void test_build_path_with_format(void)
     wstr_free(&path);
 }
 
+static void test_wstr_stress_append_and_trim_pipeline(void)
+{
+    String s = wstr_make();
+
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
+    {
+        TEST_ASSERT_TRUE(wstr_appendCString(&s, " x"));
+    }
+
+    TEST_ASSERT_TRUE(s.length > (size_t)SHL_TEST_MEDIUM_COUNT);
+    StringView trimmed = wsv_trim(wstr_view(&s));
+    TEST_ASSERT_EQUAL_CHAR('x', trimmed.data[0]);
+    TEST_ASSERT_EQUAL_CHAR('x', trimmed.data[trimmed.length - 1]);
+    wstr_free(&s);
+}
+
+static void test_wsv_nextToken_stress_counts_all_tokens(void)
+{
+    String s = wstr_make();
+    StringView separators = wsv_fromCString(", ");
+    StringView token;
+    int tokenCount = 0;
+
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
+    {
+        TEST_ASSERT_TRUE(wstr_appendFormat(&s, "item%d, ", i));
+    }
+
+    StringView remaining = wstr_view(&s);
+    while (wsv_nextToken(&remaining, separators, &token))
+    {
+        tokenCount++;
+    }
+
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT, tokenCount);
+    wstr_free(&s);
+}
+
 /* =========================================================================
    main
    ========================================================================= */
@@ -2427,6 +2465,8 @@ int main(void)
     RUN_TEST(test_chop_csv_line);
     RUN_TEST(test_tokenize_whitespace_sentence);
     RUN_TEST(test_build_path_with_format);
+    RUN_TEST(test_wstr_stress_append_and_trim_pipeline);
+    RUN_TEST(test_wsv_nextToken_stress_counts_all_tokens);
 
     return UNITY_END();
 }

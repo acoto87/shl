@@ -1,106 +1,93 @@
-#include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
-#include <assert.h>
-#include <ctype.h>
 
 #include "../binary_heap.h"
 #include "test_common.h"
 
-#if defined(SHL_LEAK_CHECK)
-static const int32_t count = 5000;
-#else
-static const int32_t count = 100000;
-#endif
-
-static float getTime()
-{
-    return (float)clock() / CLOCKS_PER_SEC;
-}
-
-int32_t compareInt(const int a, const int b)
+static int32_t compareInt(const int a, const int b)
 {
     return a - b;
 }
 
-bool equalsInt(const int a, const int b)
+static bool equalsInt(const int a, const int b)
 {
     return a == b;
 }
 
+static int32_t compareStringLength(const char* left, const char* right)
+{
+    return (int32_t)(strlen(left) - strlen(right));
+}
+
 shlDeclareBinaryHeap(IntHeap, int)
 shlDefineBinaryHeap(IntHeap, int)
+shlDeclareBinaryHeap(StringHeap, const char*)
+shlDefineBinaryHeap(StringHeap, const char*)
 
-void valueTypeTest()
+static char* makeSizedString(int length)
 {
-    float start, end;
-    int min = count;
+    char* text = (char*)malloc((size_t)length + 1u);
+    TEST_ASSERT_NOT_NULL(text);
+    memset(text, 'a', (size_t)length);
+    text[length] = 0;
+    return text;
+}
 
-    IntHeapOptions options = {0};
-    options.compareFn = compareInt;
-    options.defaultValue = 0;
-    options.equalsFn = equalsInt;
-    
+void test_heap_returns_default_for_empty_heap(void)
+{
     IntHeap heap;
-    IntHeapInit(&heap, options);
+    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
 
-    printf("--- Start test 1: add %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
-    {
-        int x = rand() % count;
-        if (x < min) min = x;
-        IntHeapPush(&heap, x);
-        assert(heap.count == i + 1);
-    }
-    end = getTime();
-    printf("BinaryHeap count and capacity: (%d, %d)\n", heap.count, heap.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: add %d objects ---\n", count);
-
-    printf("\n");
-
-    printf("--- Start test 2: peek min object ---\n");
-    start = getTime();
-    int peek = IntHeapPeek(&heap);
-    assert(peek == min);
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2:  peek min object ---\n");
-
-    printf("\n");
-
-    printf("--- Start test 3: pop min object ---\n");
-    start = getTime();
-    int prev = -1;
-    while (heap.count > 0)
-    {
-        int x = IntHeapPop(&heap);
-        if (prev >= 0)
-            assert(prev <= x);
-
-        prev = x;
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3:  pop min object ---\n");
+    TEST_ASSERT_EQUAL_INT(-1, IntHeapPeek(&heap));
+    TEST_ASSERT_EQUAL_INT(-1, IntHeapPop(&heap));
 
     IntHeapFree(&heap);
 }
 
-void edgeCaseValueTypeTest()
+void test_heap_peek_tracks_minimum_value(void)
 {
-    IntHeapOptions options = {0};
-    options.compareFn = compareInt;
-    options.equalsFn = equalsInt;
-    options.defaultValue = -1;
-
+    const int values[] = { 7, 3, 9, 1, 5 };
     IntHeap heap;
-    IntHeapInit(&heap, options);
+    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
 
-    assert(IntHeapPeek(&heap) == -1);
-    assert(IntHeapPop(&heap) == -1);
+    for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); i++)
+    {
+        IntHeapPush(&heap, values[i]);
+    }
+
+    TEST_ASSERT_EQUAL_INT(1, IntHeapPeek(&heap));
+    TEST_ASSERT_TRUE(IntHeapContains(&heap, 7));
+    TEST_ASSERT_TRUE(IntHeapIndexOf(&heap, 9) >= 0);
+    IntHeapFree(&heap);
+}
+
+void test_heap_pop_returns_sorted_values(void)
+{
+    const int values[] = { 5, 2, 8, 1, 4, 3 };
+    IntHeap heap;
+    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
+
+    for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); i++)
+    {
+        IntHeapPush(&heap, values[i]);
+    }
+
+    int previous = IntHeapPop(&heap);
+    while (heap.count > 0)
+    {
+        int current = IntHeapPop(&heap);
+        TEST_ASSERT_TRUE(previous <= current);
+        previous = current;
+    }
+
+    IntHeapFree(&heap);
+}
+
+void test_heap_update_reorders_entry_both_directions(void)
+{
+    IntHeap heap;
+    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
 
     IntHeapPush(&heap, 10);
     IntHeapPush(&heap, 20);
@@ -108,117 +95,80 @@ void edgeCaseValueTypeTest()
     IntHeapPush(&heap, 40);
 
     int index = IntHeapIndexOf(&heap, 30);
-    assert(index >= 0);
+    TEST_ASSERT_TRUE(index >= 0);
     IntHeapUpdate(&heap, index, 5);
-    assert(IntHeapPeek(&heap) == 5);
+    TEST_ASSERT_EQUAL_INT(5, IntHeapPeek(&heap));
 
     index = IntHeapIndexOf(&heap, 10);
-    assert(index >= 0);
+    TEST_ASSERT_TRUE(index >= 0);
     IntHeapUpdate(&heap, index, 50);
 
     int previous = IntHeapPop(&heap);
     while (heap.count > 0)
     {
         int current = IntHeapPop(&heap);
-        assert(previous <= current);
+        TEST_ASSERT_TRUE(previous <= current);
         previous = current;
     }
 
     IntHeapFree(&heap);
 }
 
-int32_t compareStrLength(const char* a, const char* b)
+void test_heap_stress_preserves_sorted_pop_sequence(void)
 {
-    return strlen(a) - strlen(b);
-}
+    IntHeap heap;
+    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
 
-shlDeclareBinaryHeap(SHeap, const char*)
-shlDefineBinaryHeap(SHeap, const char*)
-
-char* generateString()
-{
-    const int stringLength = 50;
-    char *s = (char*)calloc(stringLength + 1, sizeof(char));
-    
-    for(int i = 0; i < 50; i++)
-        s[i] = rand() % 27 + 97;
-    
-    return s;
-}
-
-void freeStr(const char* str)
-{
-    free((void*)str);
-}
-
-void referenceTypeTest()
-{
-    float start, end;
-    int min = INT32_MAX;
-
-    printf("--- Start generating %d tests strings ---\n", count);
-    start = getTime();
-    char *strings[100000];
-    for(int i = 0; i < count; i++)
-        strings[i] = generateString();
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End generating %d tests strings ---\n", count);
-
-    printf("\n\n");
-
-    SHeapOptions options = {0};
-    options.compareFn = compareStrLength;
-    options.defaultValue = NULL;
-    options.freeFn = NULL;
-    
-    SHeap heap;
-    SHeapInit(&heap, options);
-
-    printf("--- Start test 1: add %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
+    int expectedMin = INT_MAX;
+    for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
     {
-        int len = strlen(strings[i]);
-        if (len < min) min = len;
-        SHeapPush(&heap, strings[i]);
-        assert(heap.count == i + 1);
+        int value = (i * 73) % SHL_TEST_STRESS_COUNT;
+        if (value < expectedMin)
+        {
+            expectedMin = value;
+        }
+        IntHeapPush(&heap, value);
     }
-    end = getTime();
-    printf("BinaryHeap count and capacity: (%d, %d)\n", heap.count, heap.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: add %d objects ---\n", count);
 
-    printf("\n");
+    TEST_ASSERT_EQUAL_INT(expectedMin, IntHeapPeek(&heap));
 
-    printf("--- Start test 2: peek min object ---\n");
-    start = getTime();
-    const char* peek = SHeapPeek(&heap);
-        assert(strlen(peek) == (size_t)min);
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2:  peek min object ---\n");
-
-    printf("\n");
-
-    printf("--- Start test 3: pop min object ---\n");
-    start = getTime();
-    int prev = -1;
+    int previous = IntHeapPop(&heap);
     while (heap.count > 0)
     {
-        const char* str = SHeapPop(&heap);
-        int len = strlen(str);
-        if (prev >= 0)
-            assert(prev <= len);
-
-        prev = len;
-        free((void*)str);
+        int current = IntHeapPop(&heap);
+        TEST_ASSERT_TRUE(previous <= current);
+        previous = current;
     }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3:  pop min object ---\n");
 
-    SHeapFree(&heap);
+    IntHeapFree(&heap);
+}
+
+void test_string_heap_orders_by_string_length(void)
+{
+    const int lengths[] = { 8, 3, 5, 1, 6 };
+    StringHeap heap;
+    StringHeapInit(&heap, (StringHeapOptions){ .defaultValue = NULL, .compareFn = compareStringLength, .freeFn = NULL });
+
+    for (size_t i = 0; i < sizeof(lengths) / sizeof(lengths[0]); i++)
+    {
+        StringHeapPush(&heap, makeSizedString(lengths[i]));
+    }
+
+    TEST_ASSERT_EQUAL_size_t(1u, strlen(StringHeapPeek(&heap)));
+
+    const char* first = StringHeapPop(&heap);
+    size_t previous = strlen(first);
+    free((void*)first);
+    while (heap.count > 0)
+    {
+        const char* text = StringHeapPop(&heap);
+        size_t current = strlen(text);
+        TEST_ASSERT_TRUE(previous <= current);
+        previous = current;
+        free((void*)text);
+    }
+
+    StringHeapFree(&heap);
 }
 
 void setUp(void)
@@ -231,12 +181,12 @@ void tearDown(void)
 
 int main(void)
 {
-    /* initialize random seed: */
-    srand(time(NULL));
-
     UNITY_BEGIN();
-    RUN_TEST(valueTypeTest);
-    RUN_TEST(edgeCaseValueTypeTest);
-    RUN_TEST(referenceTypeTest);
+    RUN_TEST(test_heap_returns_default_for_empty_heap);
+    RUN_TEST(test_heap_peek_tracks_minimum_value);
+    RUN_TEST(test_heap_pop_returns_sorted_values);
+    RUN_TEST(test_heap_update_reorders_entry_both_directions);
+    RUN_TEST(test_heap_stress_preserves_sorted_pop_sequence);
+    RUN_TEST(test_string_heap_orders_by_string_length);
     return UNITY_END();
 }

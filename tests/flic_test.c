@@ -41,6 +41,32 @@ static void writeMinimalFlic(const char* path, uint16_t magic, uint16_t width, u
     fclose(file);
 }
 
+static void writeMinimalFlicWithOffsets(const char* path, uint32_t frame1Offset, uint32_t frame2Offset)
+{
+    FILE* file = fopen(path, "wb");
+    TEST_ASSERT_NOT_NULL(file);
+
+    writeUInt32LE(file, 128);
+    writeUInt16LE(file, FLC_MAGIC_NUMBER);
+    writeUInt16LE(file, 2);
+    writeUInt16LE(file, 10);
+    writeUInt16LE(file, 12);
+    writeUInt16LE(file, 8);
+    writeUInt16LE(file, 0);
+    writeUInt32LE(file, 33);
+
+    for (int i = 20; i < 80; i++)
+        fputc(0, file);
+
+    writeUInt32LE(file, frame1Offset);
+    writeUInt32LE(file, frame2Offset);
+
+    for (int i = 88; i < 128; i++)
+        fputc(0, file);
+
+    fclose(file);
+}
+
 void flicOpenFailsForMissingFile(void)
 {
     Flic flic;
@@ -75,6 +101,58 @@ void flicOpenAppliesDefaultDimensions(void)
     remove(path);
 }
 
+void flicOpenReadsFlcFrameOffsets(void)
+{
+    const char* path = "offsets.flc";
+    writeMinimalFlicWithOffsets(path, 256, 512);
+
+    Flic flic;
+    TEST_ASSERT_TRUE(flicOpen(&flic, path));
+    TEST_ASSERT_EQUAL_UINT16(2, flic.frames);
+    TEST_ASSERT_EQUAL_UINT16(10, flic.width);
+    TEST_ASSERT_EQUAL_UINT16(12, flic.height);
+    TEST_ASSERT_EQUAL_UINT32(256u, flic.oframe1);
+    TEST_ASSERT_EQUAL_UINT32(512u, flic.oframe2);
+    flicClose(&flic);
+
+    remove(path);
+}
+
+void flicMakeImageAppliesChangedPixelsOnly(void)
+{
+    Flic flic = { .width = 2, .height = 2 };
+    uint16_t pixels[] = {
+        FLI_PXL_CHANGE | 1, 2,
+        FLI_PXL_CHANGE | 3, 4
+    };
+    uint8_t colors[FLI_COLORS_SIZE] = {0};
+    uint8_t image[12];
+    FlicFrame frame = {
+        .pixels = pixels,
+        .rowStride = 2,
+    };
+
+    memset(image, 0xCC, sizeof(image));
+    memcpy(frame.colors, colors, sizeof(colors));
+    frame.colors[1 * 3 + 0] = 10;
+    frame.colors[1 * 3 + 1] = 11;
+    frame.colors[1 * 3 + 2] = 12;
+    frame.colors[3 * 3 + 0] = 30;
+    frame.colors[3 * 3 + 1] = 31;
+    frame.colors[3 * 3 + 2] = 32;
+
+    flicMakeImage(&flic, &frame, image);
+
+    TEST_ASSERT_EQUAL_UINT8(10, image[0]);
+    TEST_ASSERT_EQUAL_UINT8(11, image[1]);
+    TEST_ASSERT_EQUAL_UINT8(12, image[2]);
+    TEST_ASSERT_EQUAL_UINT8(0xCC, image[3]);
+    TEST_ASSERT_EQUAL_UINT8(30, image[6]);
+    TEST_ASSERT_EQUAL_UINT8(31, image[7]);
+    TEST_ASSERT_EQUAL_UINT8(32, image[8]);
+    TEST_ASSERT_EQUAL_UINT8(0xCC, image[9]);
+}
+
 void setUp(void)
 {
 }
@@ -89,5 +167,7 @@ int main(void)
     RUN_TEST(flicOpenFailsForMissingFile);
     RUN_TEST(flicOpenFailsForInvalidMagic);
     RUN_TEST(flicOpenAppliesDefaultDimensions);
+    RUN_TEST(flicOpenReadsFlcFrameOffsets);
+    RUN_TEST(flicMakeImageAppliesChangedPixelsOnly);
     return UNITY_END();
 }

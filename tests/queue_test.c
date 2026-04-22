@@ -1,313 +1,206 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
-#include <assert.h>
 
 #include "../queue.h"
 #include "test_common.h"
 
-#if defined(SHL_LEAK_CHECK)
-static const int32_t count = 5000;
-#else
-static const int32_t count = 100000;
-#endif
-
-static float getTime()
-{
-    return (float)clock() / CLOCKS_PER_SEC;
-}
-
-// value type tests
-bool intEquals(const int x, const int y)
+static bool intEquals(const int x, const int y)
 {
     return x == y;
 }
 
-shlDeclareQueue(IntQueue, int)
-shlDefineQueue(IntQueue, int)
-
-void edgeCaseValueTypeTest()
-{
-    IntQueueOptions options = {0};
-    options.defaultValue = -1;
-    options.equalsFn = intEquals;
-
-    IntQueue queue;
-    IntQueueInit(&queue, options);
-
-    assert(IntQueuePeek(&queue) == -1);
-    assert(IntQueuePop(&queue) == -1);
-
-    for (int i = 0; i < 6; i++)
-        IntQueuePush(&queue, i);
-    for (int i = 0; i < 4; i++)
-        assert(IntQueuePop(&queue) == i);
-
-    for (int i = 6; i < 18; i++)
-        IntQueuePush(&queue, i);
-
-    for (int i = 4; i < 18; i++)
-        assert(IntQueuePop(&queue) == i);
-
-    assert(IntQueuePop(&queue) == -1);
-    IntQueueFree(&queue);
-
-    IntQueueOptions noEqualsOptions = {0};
-    noEqualsOptions.defaultValue = -1;
-    IntQueueInit(&queue, noEqualsOptions);
-    IntQueuePush(&queue, 1);
-    assert(!IntQueueContains(&queue, 1));
-    IntQueueFree(&queue);
-}
-
-void valueTypeTest()
-{
-    float start, end;
-    int peek;
-
-    IntQueueOptions options = {0};
-    options.defaultValue = 0;
-    options.equalsFn = intEquals;
-
-    IntQueue queue;
-    IntQueueInit(&queue, options);
-
-    printf("--- Start value type tests ---\n");
-
-    printf("--- Start test 1: enqueue %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
-    {
-        IntQueuePush(&queue, i);
-        assert(IntQueuePeek(&queue) == 0);
-    }
-    end = getTime();
-    printf("Queue count and capacity: (%d, %d)\n", queue.count, queue.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: push %d objects ---\n", count);
-
-    printf("\n");
-
-    printf("--- Start test 2: contains %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int value = rand() % count;
-        assert(IntQueueContains(&queue, value));
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 3: pop %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        peek = IntQueuePeek(&queue);
-        int value = IntQueuePop(&queue);
-        assert(peek == value);
-    }
-    end = getTime();
-    printf("Queue count and capacity: (%d, %d)\n", queue.count, queue.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: pop %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 4: push/pop %d objects ---\n", count / 2);
-    start = getTime();
-    peek = IntQueuePeek(&queue);
-    for(int i = 0; i < count/2; i++)
-    {
-        if (rand() % 100 > 50)
-        {
-            IntQueuePush(&queue, i);
-            assert(IntQueuePeek(&queue) == peek);
-        }
-        else
-        {
-            int value = IntQueuePop(&queue);
-            assert(peek == value);
-            peek = IntQueuePeek(&queue);
-        }
-    }
-    end = getTime();
-    printf("Queue count and capacity: (%d, %d)\n", queue.count, queue.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 4: push/pop %d objects ---\n", count / 2);
-
-    printf("--- End value type tests ---\n");
-    IntQueueFree(&queue);
-}
-
-// reference type test
 typedef struct
 {
     int index;
-    char *name;
+    const char* name;
 } Entry;
 
-bool EntryEquals(const Entry *e1, const Entry *e2)
+static bool entryEquals(const Entry* left, const Entry* right)
 {
-    return e1->index == e2->index &&
-           strcmp(e1->name, e2->name) == 0;
+    return left->index == right->index && strcmp(left->name, right->name) == 0;
 }
 
-void EntryFree(Entry* e)
+static void entryFree(Entry* entry)
 {
-    free(e);
+    free(entry);
 }
 
-shlDeclareQueue(EntriesQueue, Entry*)
-shlDefineQueue(EntriesQueue, Entry*)
+shlDeclareQueue(IntQueue, int)
+shlDefineQueue(IntQueue, int)
+shlDeclareQueue(EntryQueue, Entry*)
+shlDefineQueue(EntryQueue, Entry*)
 
-static int queueFreeCount = 0;
+static int g_entryFreeCount = 0;
 
-void EntryTrackFree(Entry* e)
+static void trackedEntryFree(Entry* entry)
 {
-    queueFreeCount++;
-    free(e);
+    g_entryFreeCount++;
+    free(entry);
 }
 
-void edgeCaseReferenceTypeTest()
+static Entry* makeEntry(int index, const char* name)
 {
-    EntriesQueueOptions options = {0};
-    options.defaultValue = NULL;
-    options.equalsFn = EntryEquals;
-    options.freeFn = EntryTrackFree;
+    Entry* entry = (Entry*)malloc(sizeof(Entry));
+    TEST_ASSERT_NOT_NULL(entry);
+    entry->index = index;
+    entry->name = name;
+    return entry;
+}
 
-    EntriesQueue queue;
-    EntriesQueueInit(&queue, options);
+void test_int_queue_returns_default_for_empty_queue(void)
+{
+    IntQueue queue;
+    IntQueueInit(&queue, (IntQueueOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    TEST_ASSERT_EQUAL_INT(-1, IntQueuePeek(&queue));
+    TEST_ASSERT_EQUAL_INT(-1, IntQueuePop(&queue));
+
+    IntQueueFree(&queue);
+}
+
+void test_int_queue_preserves_fifo_order(void)
+{
+    IntQueue queue;
+    IntQueueInit(&queue, (IntQueueOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    for (int i = 0; i < 16; i++)
+    {
+        IntQueuePush(&queue, i);
+        TEST_ASSERT_EQUAL_INT(0, IntQueuePeek(&queue));
+    }
+
+    for (int i = 0; i < 16; i++)
+    {
+        TEST_ASSERT_TRUE(IntQueueContains(&queue, i));
+        TEST_ASSERT_EQUAL_INT(i, IntQueuePop(&queue));
+    }
+
+    TEST_ASSERT_EQUAL_INT(0, queue.count);
+    TEST_ASSERT_EQUAL_INT(-1, IntQueuePop(&queue));
+    IntQueueFree(&queue);
+}
+
+void test_int_queue_wraparound_keeps_order(void)
+{
+    IntQueue queue;
+    IntQueueInit(&queue, (IntQueueOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
     for (int i = 0; i < 6; i++)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = i;
-        entry->name = "entry";
-        EntriesQueuePush(&queue, entry);
+        IntQueuePush(&queue, i);
     }
 
     for (int i = 0; i < 4; i++)
-        EntryFree(EntriesQueuePop(&queue));
-
-    for (int i = 6; i < 12; i++)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = i;
-        entry->name = "entry";
-        EntriesQueuePush(&queue, entry);
+        TEST_ASSERT_EQUAL_INT(i, IntQueuePop(&queue));
     }
 
-    queueFreeCount = 0;
-    EntriesQueueClear(&queue);
-    assert(queue.count == 0);
-    assert(queue.head == 0);
-    assert(queue.tail == 0);
-    assert(queueFreeCount == 8);
-    assert(EntriesQueuePeek(&queue) == NULL);
+    for (int i = 6; i < 18; i++)
+    {
+        IntQueuePush(&queue, i);
+    }
 
-    EntriesQueueFree(&queue);
+    for (int i = 4; i < 18; i++)
+    {
+        TEST_ASSERT_EQUAL_INT(i, IntQueuePop(&queue));
+    }
+
+    TEST_ASSERT_EQUAL_INT(0, queue.count);
+    TEST_ASSERT_EQUAL_INT(-1, IntQueuePeek(&queue));
+    IntQueueFree(&queue);
 }
 
-void referenceTypeTest()
+void test_int_queue_stress_push_pop_mix_keeps_consistent_front(void)
 {
-    float start, end;
-    Entry *peek;
+    IntQueue queue;
+    IntQueueInit(&queue, (IntQueueOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
-    EntriesQueueOptions options = {0};
-    options.defaultValue = NULL;
-    options.equalsFn = EntryEquals;
-    options.freeFn = EntryFree;
-
-    EntriesQueue queue;
-    EntriesQueueInit(&queue, options);
-
-    printf("--- Start reference type tests ---\n");
-
-    printf("--- Start test 1: enqueue %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
+    int nextExpected = 0;
+    for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = i;
-        entry->name = "entry";
-        EntriesQueuePush(&queue, entry);
-        assert(EntriesQueuePeek(&queue)->index == 0);
+        IntQueuePush(&queue, i);
     }
-    end = getTime();
-    printf("Queue count and capacity: (%d, %d)\n", queue.count, queue.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: push %d objects ---\n", count);
 
-    printf("\n");
-
-    printf("--- Start test 2: contains %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
+    for (int i = 0; i < SHL_TEST_STRESS_COUNT / 2; i++)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = rand() % count;
-        entry->name = "entry";
-        assert(EntriesQueueContains(&queue, entry));
-        free(entry);
+        TEST_ASSERT_EQUAL_INT(nextExpected++, IntQueuePop(&queue));
+        IntQueuePush(&queue, SHL_TEST_STRESS_COUNT + i);
+        TEST_ASSERT_EQUAL_INT(nextExpected, IntQueuePeek(&queue));
     }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count / 2);
 
-    printf("\n");
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT, queue.count);
+    IntQueueFree(&queue);
+}
 
-    printf("--- Start test 3: pop %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
+void test_entry_queue_contains_equivalent_value(void)
+{
+    EntryQueue queue;
+    EntryQueueInit(&queue, (EntryQueueOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = entryFree });
+
+    Entry* stored = makeEntry(11, "entry");
+    Entry probe = { .index = 11, .name = "entry" };
+
+    EntryQueuePush(&queue, stored);
+    TEST_ASSERT_TRUE(EntryQueueContains(&queue, &probe));
+    TEST_ASSERT_EQUAL_PTR(stored, EntryQueuePeek(&queue));
+
+    EntryQueueFree(&queue);
+}
+
+void test_entry_queue_clear_calls_free_function_after_wraparound(void)
+{
+    EntryQueue queue;
+    EntryQueueInit(&queue, (EntryQueueOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+
+    for (int i = 0; i < 6; i++)
     {
-        peek = EntriesQueuePeek(&queue);
-        Entry *entry = EntriesQueuePop(&queue);
-        assert(peek->index == entry->index);
-        EntryFree(entry);
+        EntryQueuePush(&queue, makeEntry(i, "entry"));
     }
-    end = getTime();
-    printf("Queue count and capacity: (%d, %d)\n", queue.count, queue.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: pop %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 4: push/pop %d objects ---\n", count / 2);
-    start = getTime();
-    peek = EntriesQueuePeek(&queue);
-    for(int i = 0; i < count/2; i++)
+    for (int i = 0; i < 4; i++)
     {
-        if (rand() % 100 > 50)
-        {
-            Entry *entry = (Entry*)malloc(sizeof(Entry));
-            entry->index = rand() % count;
-            entry->name = "entry";
-            EntriesQueuePush(&queue, entry);
-            assert(EntriesQueuePeek(&queue)->index == peek->index);
-        }
-        else
-        {
-            Entry *entry = EntriesQueuePop(&queue);
-            assert(peek->index == entry->index);
-            peek = EntriesQueuePeek(&queue);
-            EntryFree(entry);
-        }
+        trackedEntryFree(EntryQueuePop(&queue));
     }
-    end = getTime();
-    printf("Queue count and capacity: (%d, %d)\n", queue.count, queue.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 4: push/pop %d objects ---\n", count / 2);
+    for (int i = 6; i < 14; i++)
+    {
+        EntryQueuePush(&queue, makeEntry(i, "entry"));
+    }
 
-    printf("--- End reference type tests ---\n");
-    EntriesQueueFree(&queue);
+    EntryQueueClear(&queue);
+
+    TEST_ASSERT_EQUAL_INT(14, g_entryFreeCount);
+    TEST_ASSERT_EQUAL_INT(0, queue.count);
+    TEST_ASSERT_EQUAL_INT(0, queue.head);
+    TEST_ASSERT_EQUAL_INT(0, queue.tail);
+    TEST_ASSERT_NULL(EntryQueuePeek(&queue));
+    EntryQueueFree(&queue);
+}
+
+void test_entry_queue_integration_pop_half_then_clear_releases_all_items(void)
+{
+    EntryQueue queue;
+    EntryQueueInit(&queue, (EntryQueueOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
+    {
+        EntryQueuePush(&queue, makeEntry(i, "bulk"));
+    }
+
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT / 2; i++)
+    {
+        Entry* entry = EntryQueuePop(&queue);
+        TEST_ASSERT_EQUAL_INT(i, entry->index);
+        trackedEntryFree(entry);
+    }
+
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT / 2, queue.count);
+    EntryQueueClear(&queue);
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT, g_entryFreeCount);
+    EntryQueueFree(&queue);
 }
 
 void setUp(void)
 {
+    g_entryFreeCount = 0;
 }
 
 void tearDown(void)
@@ -316,13 +209,13 @@ void tearDown(void)
 
 int main(void)
 {
-    /* initialize random seed: */
-    srand(time(NULL));
-
     UNITY_BEGIN();
-    RUN_TEST(valueTypeTest);
-    RUN_TEST(edgeCaseValueTypeTest);
-    RUN_TEST(referenceTypeTest);
-    RUN_TEST(edgeCaseReferenceTypeTest);
+    RUN_TEST(test_int_queue_returns_default_for_empty_queue);
+    RUN_TEST(test_int_queue_preserves_fifo_order);
+    RUN_TEST(test_int_queue_wraparound_keeps_order);
+    RUN_TEST(test_int_queue_stress_push_pop_mix_keeps_consistent_front);
+    RUN_TEST(test_entry_queue_contains_equivalent_value);
+    RUN_TEST(test_entry_queue_clear_calls_free_function_after_wraparound);
+    RUN_TEST(test_entry_queue_integration_pop_half_then_clear_releases_all_items);
     return UNITY_END();
 }

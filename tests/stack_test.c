@@ -1,237 +1,188 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
-#include <assert.h>
 
 #include "../stack.h"
 #include "test_common.h"
 
-#if defined(SHL_LEAK_CHECK)
-static const int32_t count = 5000;
-#else
-static const int32_t count = 100000;
-#endif
-
-static float getTime()
-{
-    return (float)clock() / CLOCKS_PER_SEC;
-}
-
-// value type tests
-bool intEquals(const int x, const int y)
+static bool intEquals(const int x, const int y)
 {
     return x == y;
 }
 
-shlDeclareStack(IntStack, int)
-shlDefineStack(IntStack, int)
-
-void edgeCaseValueTypeTest()
-{
-    IntStackOptions options = {0};
-    options.defaultValue = -1;
-    options.equalsFn = intEquals;
-
-    IntStack stack;
-    IntStackInit(&stack, options);
-
-    assert(IntStackPeek(&stack) == -1);
-    assert(IntStackPop(&stack) == -1);
-
-    for (int i = 0; i < count * 2; i++)
-        IntStackPush(&stack, i);
-
-    for (int i = count * 2 - 1; i >= count; i--)
-        assert(IntStackPop(&stack) == i);
-
-    IntStackClear(&stack);
-    assert(stack.count == 0);
-    assert(IntStackPop(&stack) == -1);
-
-    IntStackFree(&stack);
-}
-
-void valueTypeTest()
-{
-    float start, end;
-
-    IntStackOptions options = {0};
-    options.defaultValue = 0;
-    options.equalsFn = intEquals;
-
-    IntStack stack;
-    IntStackInit(&stack, options);
-
-    printf("--- Start value type tests ---\n");
-
-    printf("--- Start test 1: push %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
-    {
-        IntStackPush(&stack, i);
-        assert(IntStackPeek(&stack) == i);
-    }
-    end = getTime();
-    printf("Stack count and capacity: (%d, %d)\n", stack.count, stack.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: push %d objects ---\n", count);
-
-    printf("\n");
-
-    printf("--- Start test 2: contains %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int value = rand() % count;
-        assert(IntStackContains(&stack, value));
-    }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count / 2);
-
-    printf("\n");
-
-    printf("--- Start test 3: pop %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
-    {
-        int peek = IntStackPeek(&stack);
-        int value = IntStackPop(&stack);
-        assert(peek == value);
-    }
-    end = getTime();
-    printf("Stack count and capacity: (%d, %d)\n", stack.count, stack.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: pop %d objects ---\n", count / 2);
-
-    printf("--- End value type tests ---\n");
-    IntStackFree(&stack);
-}
-
-// reference type test
 typedef struct
 {
     int index;
-    char *name;
+    const char* name;
 } Entry;
 
-bool EntryEquals(const Entry *e1, const Entry *e2)
+static bool entryEquals(const Entry* left, const Entry* right)
 {
-    return e1->index == e2->index &&
-           strcmp(e1->name, e2->name) == 0;
+    return left->index == right->index && strcmp(left->name, right->name) == 0;
 }
 
-void EntryFree(Entry* e)
+static void entryFree(Entry* entry)
 {
-    free(e);
+    free(entry);
 }
 
-shlDeclareStack(EntriesStack, Entry*)
-shlDefineStack(EntriesStack, Entry*)
+shlDeclareStack(IntStack, int)
+shlDefineStack(IntStack, int)
+shlDeclareStack(EntryStack, Entry*)
+shlDefineStack(EntryStack, Entry*)
 
-static int stackFreeCount = 0;
+static int g_entryFreeCount = 0;
 
-void EntryTrackFree(Entry* e)
+static void trackedEntryFree(Entry* entry)
 {
-    stackFreeCount++;
-    free(e);
+    g_entryFreeCount++;
+    free(entry);
 }
 
-void edgeCaseReferenceTypeTest()
+static Entry* makeEntry(int index, const char* name)
 {
-    EntriesStackOptions options = {0};
-    options.defaultValue = NULL;
-    options.equalsFn = EntryEquals;
-    options.freeFn = EntryTrackFree;
+    Entry* entry = (Entry*)malloc(sizeof(Entry));
+    TEST_ASSERT_NOT_NULL(entry);
+    entry->index = index;
+    entry->name = name;
+    return entry;
+}
 
-    EntriesStack stack;
-    EntriesStackInit(&stack, options);
+void test_int_stack_returns_default_for_empty_stack(void)
+{
+    IntStack stack;
+    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    TEST_ASSERT_EQUAL_INT(-1, IntStackPeek(&stack));
+    TEST_ASSERT_EQUAL_INT(-1, IntStackPop(&stack));
+
+    IntStackFree(&stack);
+}
+
+void test_int_stack_push_pop_is_lifo(void)
+{
+    IntStack stack;
+    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    for (int i = 0; i < 16; i++)
+    {
+        IntStackPush(&stack, i);
+        TEST_ASSERT_EQUAL_INT(i + 1, stack.count);
+        TEST_ASSERT_EQUAL_INT(i, IntStackPeek(&stack));
+    }
+
+    for (int i = 15; i >= 0; i--)
+    {
+        TEST_ASSERT_TRUE(IntStackContains(&stack, i));
+        TEST_ASSERT_EQUAL_INT(i, IntStackPop(&stack));
+    }
+
+    TEST_ASSERT_EQUAL_INT(0, stack.count);
+    TEST_ASSERT_EQUAL_INT(-1, IntStackPop(&stack));
+    IntStackFree(&stack);
+}
+
+void test_int_stack_clear_resets_count(void)
+{
+    IntStack stack;
+    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
     for (int i = 0; i < 32; i++)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = i;
-        entry->name = "entry";
-        EntriesStackPush(&stack, entry);
+        IntStackPush(&stack, i);
     }
 
-    stackFreeCount = 0;
-    EntriesStackClear(&stack);
-    assert(stack.count == 0);
-    assert(stackFreeCount == 32);
-    assert(EntriesStackPeek(&stack) == NULL);
+    IntStackClear(&stack);
 
-    EntriesStackFree(&stack);
+    TEST_ASSERT_EQUAL_INT(0, stack.count);
+    TEST_ASSERT_EQUAL_INT(-1, IntStackPeek(&stack));
+    IntStackFree(&stack);
 }
 
-void referenceTypeTest()
+void test_int_stack_stress_push_pop_cycle(void)
 {
-    float start, end;
+    IntStack stack;
+    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
-    EntriesStackOptions options = {0};
-    options.defaultValue = NULL;
-    options.equalsFn = EntryEquals;
-    options.freeFn = EntryFree;
-
-    EntriesStack stack;
-    EntriesStackInit(&stack, options);
-
-    printf("--- Start reference type tests ---\n");
-
-    printf("--- Start test 1: push %d objects ---\n", count);
-    start = getTime();
-    for(int i = 0; i < count; i++)
+    for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = i;
-        entry->name = "entry";
-        EntriesStackPush(&stack, entry);
-        assert(EntriesStackPeek(&stack)->index == entry->index);
+        IntStackPush(&stack, i);
     }
-    end = getTime();
-    printf("Stack count and capacity: (%d, %d)\n", stack.count, stack.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 1: push %d objects ---\n", count);
 
-    printf("\n");
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT, stack.count);
+    TEST_ASSERT_TRUE(stack.capacity >= SHL_TEST_STRESS_COUNT);
 
-    printf("--- Start test 2: contains %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
+    for (int i = SHL_TEST_STRESS_COUNT - 1; i >= SHL_TEST_STRESS_COUNT / 2; i--)
     {
-        Entry *entry = (Entry*)malloc(sizeof(Entry));
-        entry->index = rand() % count;
-        entry->name = "entry";
-        assert(EntriesStackContains(&stack, entry));
-        free(entry);
+        TEST_ASSERT_EQUAL_INT(i, IntStackPop(&stack));
     }
-    end = getTime();
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 2: contains %d objects ---\n", count / 2);
 
-    printf("\n");
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT / 2, stack.count);
+    TEST_ASSERT_EQUAL_INT((SHL_TEST_STRESS_COUNT / 2) - 1, IntStackPeek(&stack));
+    IntStackFree(&stack);
+}
 
-    printf("--- Start test 3: pop %d objects ---\n", count / 2);
-    start = getTime();
-    for(int i = 0; i < count/2; i++)
+void test_entry_stack_contains_equivalent_value(void)
+{
+    EntryStack stack;
+    EntryStackInit(&stack, (EntryStackOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = entryFree });
+
+    Entry* stored = makeEntry(7, "entry");
+    Entry probe = { .index = 7, .name = "entry" };
+
+    EntryStackPush(&stack, stored);
+
+    TEST_ASSERT_TRUE(EntryStackContains(&stack, &probe));
+    TEST_ASSERT_EQUAL_PTR(stored, EntryStackPeek(&stack));
+
+    EntryStackFree(&stack);
+}
+
+void test_entry_stack_clear_calls_free_function(void)
+{
+    EntryStack stack;
+    EntryStackInit(&stack, (EntryStackOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+
+    g_entryFreeCount = 0;
+    for (int i = 0; i < 24; i++)
     {
-        Entry *peek = EntriesStackPeek(&stack);
-        Entry *entry = EntriesStackPop(&stack);
-        assert(peek->index == entry->index);
-        free(entry);
+        EntryStackPush(&stack, makeEntry(i, "tracked"));
     }
-    end = getTime();
-    printf("Stack count and capacity: (%d, %d)\n", stack.count, stack.capacity);
-    printf("Time: %.2f seconds\n", end - start);
-    printf("--- End test 3: pop %d objects ---\n", count / 2);
 
-    printf("--- End reference type tests ---\n");
-    EntriesStackFree(&stack);
+    EntryStackClear(&stack);
+
+    TEST_ASSERT_EQUAL_INT(24, g_entryFreeCount);
+    TEST_ASSERT_EQUAL_INT(0, stack.count);
+    TEST_ASSERT_NULL(EntryStackPeek(&stack));
+    EntryStackFree(&stack);
+}
+
+void test_entry_stack_integration_pop_then_clear_releases_remaining_items(void)
+{
+    EntryStack stack;
+    EntryStackInit(&stack, (EntryStackOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+
+    g_entryFreeCount = 0;
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
+    {
+        EntryStackPush(&stack, makeEntry(i, "bulk"));
+    }
+
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT / 2; i++)
+    {
+        Entry* popped = EntryStackPop(&stack);
+        TEST_ASSERT_NOT_NULL(popped);
+        trackedEntryFree(popped);
+    }
+
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT / 2, stack.count);
+    EntryStackClear(&stack);
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT, g_entryFreeCount);
+    EntryStackFree(&stack);
 }
 
 void setUp(void)
 {
+    g_entryFreeCount = 0;
 }
 
 void tearDown(void)
@@ -240,13 +191,13 @@ void tearDown(void)
 
 int main(void)
 {
-    /* initialize random seed: */
-    srand(time(NULL));
-
     UNITY_BEGIN();
-    RUN_TEST(valueTypeTest);
-    RUN_TEST(edgeCaseValueTypeTest);
-    RUN_TEST(referenceTypeTest);
-    RUN_TEST(edgeCaseReferenceTypeTest);
+    RUN_TEST(test_int_stack_returns_default_for_empty_stack);
+    RUN_TEST(test_int_stack_push_pop_is_lifo);
+    RUN_TEST(test_int_stack_clear_resets_count);
+    RUN_TEST(test_int_stack_stress_push_pop_cycle);
+    RUN_TEST(test_entry_stack_contains_equivalent_value);
+    RUN_TEST(test_entry_stack_clear_calls_free_function);
+    RUN_TEST(test_entry_stack_integration_pop_then_clear_releases_remaining_items);
     return UNITY_END();
 }
