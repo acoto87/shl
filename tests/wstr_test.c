@@ -1369,6 +1369,24 @@ static String test_wstr__fromCStringFormatv_helper(const char* fmt, ...)
     return string;
 }
 
+static bool test_wstr__assignCStringFormatv_helper(String* string, const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    bool ok = wstr_assignCStringFormatv(string, fmt, args);
+    va_end(args);
+    return ok;
+}
+
+static bool test_wstr__appendCStringFormatv_helper(String* string, const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    bool ok = wstr_appendCStringFormatv(string, fmt, args);
+    va_end(args);
+    return ok;
+}
+
 static void test_wstr_fromCStringFormat_simple_string(void)
 {
     String s = wstr_fromCStringFormat("hello %s %d", "world", 42);
@@ -1426,6 +1444,114 @@ static void test_wstr_fromView_empty(void)
     String s = wstr_fromView(wsv_empty());
     TEST_ASSERT_EQUAL_size_t(0, s.length);
     wstr_free(s);
+}
+
+/* =========================================================================
+   wstr_concat
+   ========================================================================= */
+
+static void test_wstr_concat_view_view_returns_combined_string(void)
+{
+    String result = wstr_concat(wsv_fromCString("hello"), wsv_fromCString(" world"));
+    TEST_ASSERT_EQUAL_size_t(11, result.length);
+    TEST_ASSERT_EQUAL_STRING("hello world", result.data);
+    TEST_ASSERT_EQUAL_CHAR(0, result.data[result.length]);
+    wstr_free(result);
+}
+
+static void test_wstr_concat_string_string_returns_combined_string(void)
+{
+    String left = wstr_fromCString("alpha");
+    String right = wstr_fromCString("beta");
+    String result = wstr_concat(wstr_view(&left), wstr_view(&right));
+
+    TEST_ASSERT_EQUAL_size_t(9, result.length);
+    TEST_ASSERT_EQUAL_STRING("alphabeta", result.data);
+    TEST_ASSERT_EQUAL_STRING("alpha", left.data);
+    TEST_ASSERT_EQUAL_STRING("beta", right.data);
+
+    wstr_free(left);
+    wstr_free(right);
+    wstr_free(result);
+}
+
+static void test_wstr_concat_string_view_returns_combined_string(void)
+{
+    String left = wstr_fromCString("path");
+    String result = wstr_concat(wstr_view(&left), wsv_fromCString("/file.txt"));
+
+    TEST_ASSERT_EQUAL_size_t(13, result.length);
+    TEST_ASSERT_EQUAL_STRING("path/file.txt", result.data);
+    TEST_ASSERT_EQUAL_STRING("path", left.data);
+
+    wstr_free(left);
+    wstr_free(result);
+}
+
+static void test_wstr_concat_view_string_returns_combined_string(void)
+{
+    String right = wstr_fromCString(".txt");
+    String result = wstr_concat(wsv_fromCString("notes"), wstr_view(&right));
+
+    TEST_ASSERT_EQUAL_size_t(9, result.length);
+    TEST_ASSERT_EQUAL_STRING("notes.txt", result.data);
+    TEST_ASSERT_EQUAL_STRING(".txt", right.data);
+
+    wstr_free(right);
+    wstr_free(result);
+}
+
+static void test_wstr_concat_empty_left_returns_right_copy(void)
+{
+    String result = wstr_concat(wsv_empty(), wsv_fromCString("hello"));
+    TEST_ASSERT_EQUAL_size_t(5, result.length);
+    TEST_ASSERT_EQUAL_STRING("hello", result.data);
+    wstr_free(result);
+}
+
+static void test_wstr_concat_empty_right_returns_left_copy(void)
+{
+    String result = wstr_concat(wsv_fromCString("hello"), wsv_empty());
+    TEST_ASSERT_EQUAL_size_t(5, result.length);
+    TEST_ASSERT_EQUAL_STRING("hello", result.data);
+    wstr_free(result);
+}
+
+static void test_wstr_concat_both_empty_returns_empty_string(void)
+{
+    String result = wstr_concat(wsv_empty(), wsv_empty());
+    TEST_ASSERT_EQUAL_size_t(0, result.length);
+    TEST_ASSERT_TRUE(wstr_isEmpty(&result));
+    wstr_free(result);
+}
+
+static void test_wstr_concat_result_does_not_alias_inputs(void)
+{
+    String left = wstr_fromCString("hello");
+    String right = wstr_fromCString("world");
+    String result = wstr_concat(wstr_view(&left), wstr_view(&right));
+
+    TEST_ASSERT_TRUE(result.data != left.data);
+    TEST_ASSERT_TRUE(result.data != right.data);
+
+    wstr_free(left);
+    wstr_free(right);
+    wstr_free(result);
+}
+
+static void test_wstr_concat_preserves_embedded_nuls(void)
+{
+    const char leftData[] = {'a', 'b', '\0', 'c'};
+    const char rightData[] = {'d', '\0', 'e'};
+    const char expected[] = {'a', 'b', '\0', 'c', 'd', '\0', 'e'};
+    String result = wstr_concat(
+        wsv_fromParts(leftData, sizeof(leftData)),
+        wsv_fromParts(rightData, sizeof(rightData)));
+
+    TEST_ASSERT_EQUAL_size_t(sizeof(expected), result.length);
+    TEST_ASSERT_EQUAL_MEMORY(expected, result.data, sizeof(expected));
+    TEST_ASSERT_EQUAL_CHAR(0, result.data[result.length]);
+    wstr_free(result);
 }
 
 /* =========================================================================
@@ -1732,6 +1858,51 @@ static void test_wstr_assignCString_null_clears(void)
     wstr_free(s);
 }
 
+static void test_wstr_assignCStringFormat_null_string_returns_false(void)
+{
+    TEST_ASSERT_FALSE(wstr_assignCStringFormat(NULL, "%s", "hello"));
+}
+
+static void test_wstr_assignCStringFormat_formats_into_empty_string(void)
+{
+    String s = wstr_make();
+    bool ok = wstr_assignCStringFormat(&s, "%s %d", "hello", 42);
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_EQUAL_STRING("hello 42", s.data);
+    TEST_ASSERT_EQUAL_size_t(8, s.length);
+    wstr_free(s);
+}
+
+static void test_wstr_assignCStringFormat_replaces_existing_content(void)
+{
+    String s = wstr_fromCString("old content");
+    bool ok = wstr_assignCStringFormat(&s, "%s:%02d", "id", 7);
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_EQUAL_STRING("id:07", s.data);
+    TEST_ASSERT_EQUAL_size_t(5, s.length);
+    wstr_free(s);
+}
+
+static void test_wstr_assignCStringFormatv_formats_arguments(void)
+{
+    String s = wstr_make();
+    bool ok = test_wstr__assignCStringFormatv_helper(&s, "%s/%s", "foo", "bar");
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_EQUAL_STRING("foo/bar", s.data);
+    TEST_ASSERT_EQUAL_size_t(7, s.length);
+    wstr_free(s);
+}
+
+static void test_wstr_assignCStringFormat_null_format_clears_and_returns_false(void)
+{
+    String s = wstr_fromCString("hello");
+    bool ok = wstr_assignCStringFormat(&s, NULL);
+    TEST_ASSERT_FALSE(ok);
+    TEST_ASSERT_EQUAL_size_t(0, s.length);
+    TEST_ASSERT_EQUAL_STRING("", wstr_cstr(&s));
+    wstr_free(s);
+}
+
 /* =========================================================================
    wstr_append / wstr_appendCString / wstr_appendChar
    ========================================================================= */
@@ -1806,6 +1977,51 @@ static void test_wstr_appendCString_null_is_noop(void)
     bool ok = wstr_appendCString(&s, NULL);
     TEST_ASSERT_TRUE(ok);
     TEST_ASSERT_EQUAL_STRING("foo", s.data);
+    wstr_free(s);
+}
+
+static void test_wstr_appendCStringFormat_null_string_returns_false(void)
+{
+    TEST_ASSERT_FALSE(wstr_appendCStringFormat(NULL, "%s", "hello"));
+}
+
+static void test_wstr_appendCStringFormat_to_empty(void)
+{
+    String s = wstr_make();
+    bool ok = wstr_appendCStringFormat(&s, "%s:%d", "item", 3);
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_EQUAL_STRING("item:3", s.data);
+    TEST_ASSERT_EQUAL_size_t(6, s.length);
+    wstr_free(s);
+}
+
+static void test_wstr_appendCStringFormat_appends_to_existing(void)
+{
+    String s = wstr_fromCString("hello");
+    bool ok = wstr_appendCStringFormat(&s, " %s %d", "world", 42);
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_EQUAL_STRING("hello world 42", s.data);
+    TEST_ASSERT_EQUAL_size_t(14, s.length);
+    wstr_free(s);
+}
+
+static void test_wstr_appendCStringFormatv_formats_arguments(void)
+{
+    String s = wstr_fromCString("path");
+    bool ok = test_wstr__appendCStringFormatv_helper(&s, "/%s.%s", "file", "txt");
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_EQUAL_STRING("path/file.txt", s.data);
+    TEST_ASSERT_EQUAL_size_t(13, s.length);
+    wstr_free(s);
+}
+
+static void test_wstr_appendCStringFormat_null_format_returns_false_and_preserves_content(void)
+{
+    String s = wstr_fromCString("hello");
+    bool ok = wstr_appendCStringFormat(&s, NULL);
+    TEST_ASSERT_FALSE(ok);
+    TEST_ASSERT_EQUAL_STRING("hello", s.data);
+    TEST_ASSERT_EQUAL_size_t(5, s.length);
     wstr_free(s);
 }
 
@@ -2435,6 +2651,17 @@ int main(void)
     RUN_TEST(test_wstr_fromView_normal);
     RUN_TEST(test_wstr_fromView_empty);
 
+    /* wstr_concat */
+    RUN_TEST(test_wstr_concat_view_view_returns_combined_string);
+    RUN_TEST(test_wstr_concat_string_string_returns_combined_string);
+    RUN_TEST(test_wstr_concat_string_view_returns_combined_string);
+    RUN_TEST(test_wstr_concat_view_string_returns_combined_string);
+    RUN_TEST(test_wstr_concat_empty_left_returns_right_copy);
+    RUN_TEST(test_wstr_concat_empty_right_returns_left_copy);
+    RUN_TEST(test_wstr_concat_both_empty_returns_empty_string);
+    RUN_TEST(test_wstr_concat_result_does_not_alias_inputs);
+    RUN_TEST(test_wstr_concat_preserves_embedded_nuls);
+
     /* wstr_adopt */
     RUN_TEST(test_wstr_adopt_null_buffer_gives_empty);
     RUN_TEST(test_wstr_adopt_normal);
@@ -2479,6 +2706,11 @@ int main(void)
     RUN_TEST(test_wstr_assign_self_aliased);
     RUN_TEST(test_wstr_assignCString_normal);
     RUN_TEST(test_wstr_assignCString_null_clears);
+    RUN_TEST(test_wstr_assignCStringFormat_null_string_returns_false);
+    RUN_TEST(test_wstr_assignCStringFormat_formats_into_empty_string);
+    RUN_TEST(test_wstr_assignCStringFormat_replaces_existing_content);
+    RUN_TEST(test_wstr_assignCStringFormatv_formats_arguments);
+    RUN_TEST(test_wstr_assignCStringFormat_null_format_clears_and_returns_false);
 
     /* wstr_append / wstr_appendCString / wstr_appendChar */
     RUN_TEST(test_wstr_append_null_string_returns_false);
@@ -2489,6 +2721,11 @@ int main(void)
     RUN_TEST(test_wstr_append_self_suffix_aliased);
     RUN_TEST(test_wstr_appendCString_normal);
     RUN_TEST(test_wstr_appendCString_null_is_noop);
+    RUN_TEST(test_wstr_appendCStringFormat_null_string_returns_false);
+    RUN_TEST(test_wstr_appendCStringFormat_to_empty);
+    RUN_TEST(test_wstr_appendCStringFormat_appends_to_existing);
+    RUN_TEST(test_wstr_appendCStringFormatv_formats_arguments);
+    RUN_TEST(test_wstr_appendCStringFormat_null_format_returns_false_and_preserves_content);
     RUN_TEST(test_wstr_appendChar_normal);
     RUN_TEST(test_wstr_appendChar_to_empty);
 
