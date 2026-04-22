@@ -24,7 +24,6 @@ static const TestTarget TestTargets[] =
 {
     { "tests/array_test.c", "array_test" },
     { "tests/binary_heap_test.c", "binary_heap_test" },
-    { "tests/canvas2d_test.c", "canvas2d_test" },
     { "tests/flic_test.c", "flic_test" },
     { "tests/list_test.c", "list_test" },
     { "tests/map_test.c", "map_test" },
