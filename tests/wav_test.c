@@ -4,26 +4,26 @@
 #include <stdint.h>
 #include <string.h>
 
-#define SHL_WAVE_WRITER_IMPLEMENTATION
-#include "../wave_writer.h"
+#define SHL_WAV_IMPLEMENTATION
+#include "../wav.h"
 #include "test_common.h"
 
 #define PI 3.14159265359f
 
 static void writeSamples(const char* path, bool stereo)
 {
-    shlWaveFile waveFile = {0};
+    wav_file_t waveFile = {0};
 
     long sampleRate = 44100;
-    shl_sample_t buffer[] = { 0, 1000, -1000, 2000 };
+    wav_sample_t buffer[] = { 0, 1000, -1000, 2000 };
 
-    TEST_ASSERT_TRUE(shlWaveInit(&waveFile, sampleRate, path));
+    TEST_ASSERT_TRUE(wav_init(&waveFile, sampleRate, path));
     if (stereo)
-        shlWaveStereo(&waveFile, true);
+        wav_stereo(&waveFile, true);
 
-    TEST_ASSERT_TRUE(shlWaveWrite(&waveFile, buffer, (long)(sizeof(buffer) / sizeof(buffer[0])), 1));
-    TEST_ASSERT_EQUAL_INT(sizeof(buffer) / sizeof(buffer[0]), shlWaveSampleCount(&waveFile));
-    TEST_ASSERT_TRUE(shlWaveFlush(&waveFile, true));
+    TEST_ASSERT_TRUE(wav_write(&waveFile, buffer, (long)(sizeof(buffer) / sizeof(buffer[0])), 1));
+    TEST_ASSERT_EQUAL_INT(sizeof(buffer) / sizeof(buffer[0]), wav_sampleCount(&waveFile));
+    TEST_ASSERT_TRUE(wav_flush(&waveFile, true));
     TEST_ASSERT_NULL(waveFile._buffer);
     TEST_ASSERT_NULL(waveFile._file);
 }
@@ -41,7 +41,7 @@ void waveWriterCreatesMonoFile(void)
     FILE* file = fopen(path, "rb");
     TEST_ASSERT_NOT_NULL(file);
 
-    uint8_t header[SHL_WAVE_HEADER_SIZE];
+    uint8_t header[WAV_HEADER_SIZE];
     TEST_ASSERT_EQUAL_size_t(sizeof(header), fread(header, 1, sizeof(header), file));
     fclose(file);
 
@@ -62,7 +62,7 @@ void waveWriterCreatesStereoHeader(void)
     FILE* file = fopen(path, "rb");
     TEST_ASSERT_NOT_NULL(file);
 
-    uint8_t header[SHL_WAVE_HEADER_SIZE];
+    uint8_t header[WAV_HEADER_SIZE];
     TEST_ASSERT_EQUAL_size_t(sizeof(header), fread(header, 1, sizeof(header), file));
     fclose(file);
 
@@ -74,51 +74,51 @@ void waveWriterCreatesStereoHeader(void)
 
 void waveWriterInitFailsForMissingDirectory(void)
 {
-    shlWaveFile waveFile = {0};
-    TEST_ASSERT_FALSE(shlWaveInit(&waveFile, 44100, "missing-dir/out.wav"));
+    wav_file_t waveFile = {0};
+    TEST_ASSERT_FALSE(wav_init(&waveFile, 44100, "missing-dir/out.wav"));
     TEST_ASSERT_NULL(waveFile._buffer);
 }
 
 void waveWriterFlushesHeaderWithExpectedDataSize(void)
 {
     const char* path = "wave_test_datasize.wav";
-    shlWaveFile waveFile = {0};
-    shl_sample_t buffer[] = { 100, 200, 300, 400, 500, 600 };
+    wav_file_t waveFile = {0};
+    wav_sample_t buffer[] = { 100, 200, 300, 400, 500, 600 };
 
-    TEST_ASSERT_TRUE(shlWaveInit(&waveFile, 22050, path));
-    TEST_ASSERT_TRUE(shlWaveWrite(&waveFile, buffer, 6, 1));
-    TEST_ASSERT_TRUE(shlWaveFlush(&waveFile, true));
+    TEST_ASSERT_TRUE(wav_init(&waveFile, 22050, path));
+    TEST_ASSERT_TRUE(wav_write(&waveFile, buffer, 6, 1));
+    TEST_ASSERT_TRUE(wav_flush(&waveFile, true));
 
     FILE* file = fopen(path, "rb");
     TEST_ASSERT_NOT_NULL(file);
-    uint8_t header[SHL_WAVE_HEADER_SIZE];
+    uint8_t header[WAV_HEADER_SIZE];
     TEST_ASSERT_EQUAL_size_t(sizeof(header), fread(header, 1, sizeof(header), file));
     fclose(file);
 
-    TEST_ASSERT_EQUAL_UINT32(6u * sizeof(shl_sample_t), readU32LE(header + 40));
-    TEST_ASSERT_EQUAL_UINT32((SHL_WAVE_HEADER_SIZE - 8) + 6u * sizeof(shl_sample_t), readU32LE(header + 4));
+    TEST_ASSERT_EQUAL_UINT32(6u * sizeof(wav_sample_t), readU32LE(header + 40));
+    TEST_ASSERT_EQUAL_UINT32((WAV_HEADER_SIZE - 8) + 6u * sizeof(wav_sample_t), readU32LE(header + 4));
     remove(path);
 }
 
 void waveWriterStressMultipleWritesAccumulateSampleCount(void)
 {
     const char* path = "wave_test_stress.wav";
-    shlWaveFile waveFile = {0};
-    shl_sample_t buffer[64];
+    wav_file_t waveFile = {0};
+    wav_sample_t buffer[64];
 
     for (int i = 0; i < 64; i++)
     {
-        buffer[i] = (shl_sample_t)(i * 10);
+        buffer[i] = (wav_sample_t)(i * 10);
     }
 
-    TEST_ASSERT_TRUE(shlWaveInit(&waveFile, 44100, path));
+    TEST_ASSERT_TRUE(wav_init(&waveFile, 44100, path));
     for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
     {
-        TEST_ASSERT_TRUE(shlWaveWrite(&waveFile, buffer, 64, 1));
+        TEST_ASSERT_TRUE(wav_write(&waveFile, buffer, 64, 1));
     }
 
-    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT * 64, shlWaveSampleCount(&waveFile));
-    TEST_ASSERT_TRUE(shlWaveFlush(&waveFile, true));
+    TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT * 64, wav_sampleCount(&waveFile));
+    TEST_ASSERT_TRUE(wav_flush(&waveFile, true));
     remove(path);
 }
 

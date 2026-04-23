@@ -23,8 +23,21 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-    This implementation is a C port of the following C++ implementation by David Capello
-    Aseprite FLIC Library: https://github.com/aseprite/flic
+    Single-header reader for Autodesk Animator FLI/FLC animation files.
+    This implementation is a C port of David Capello's Aseprite FLIC library:
+    https://github.com/aseprite/flic
+
+    USAGE
+    -----
+    In exactly one translation unit, define SHL_FLIC_IMPLEMENTATION before
+    including this header to compile the implementation:
+
+        #define SHL_FLIC_IMPLEMENTATION
+        #include "flic.h"
+
+    All other translation units include it without the define:
+
+        #include "flic.h"
 */
 #ifndef SHL_FLIC_H
 #define SHL_FLIC_H

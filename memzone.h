@@ -22,6 +22,21 @@
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
+
+    Single-header memory zone allocator with stable pointers, optional aligned
+    allocations, structural validation helpers, and configurable diagnostics.
+
+    USAGE
+    -----
+    In exactly one translation unit, define SHL_MEMORY_ZONE_IMPLEMENTATION
+    before including this header to compile the implementation:
+
+        #define SHL_MEMORY_ZONE_IMPLEMENTATION
+        #include "memzone.h"
+
+    All other translation units include it without the define:
+
+        #include "memzone.h"
 */
 #ifndef SHL_MEMORY_ZONE_H
 #define SHL_MEMORY_ZONE_H

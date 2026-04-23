@@ -23,7 +23,8 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-    This is a single header file with macros to declare and define a strongly typed heap of objects.
+    Single-header macro library to declare and define strongly typed binary
+    heaps backed by a dynamically resized array.
 */
 #ifndef SHL_HEAP_H
 #define SHL_HEAP_H

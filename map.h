@@ -23,8 +23,8 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-    This is a single header file with macros to declare and define a strongly typed list of objects that can be accessed by index.
-    Provides methods to search, sort, and manipulate lists.
+    Single-header macro library to declare and define strongly typed hash maps.
+    Callers provide hash and equality hooks for the generated key type.
 */
 
 /*

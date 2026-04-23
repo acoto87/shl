@@ -23,7 +23,8 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-    This is a single header file with macros to declare and define a strongly typed stack with push, pop and peek operations.
+    Single-header macro library to declare and define strongly typed stacks
+    backed by dynamically resized arrays.
 */
 #ifndef SHL_STACK_H
 #define SHL_STACK_H
