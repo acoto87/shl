@@ -32,7 +32,7 @@ static const TestTarget TestTargets[] =
     { "tests/queue_test.c", "queue_test" },
     { "tests/set_test.c", "set_test" },
     { "tests/stack_test.c", "stack_test" },
-    { "tests/wave_writer_test.c", "wave_writer_test" },
+    { "tests/wav_test.c", "wav_test" },
     { "tests/wstr_test.c", "wstr_test" },
 };
 
