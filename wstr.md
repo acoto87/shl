@@ -86,6 +86,7 @@ The `wstr_` functions own their storage and keep `data` null-terminated.
 | `wstr_fromView`(StringView view) | Copies a view into a new string. | `String` |
 | `wstr_concat`(StringView left, StringView right) | Returns a new string containing `left` followed by `right`. | `String` |
 | `wstr_adopt`(char* buffer, size_t length, size_t capacity) | Adopts an existing mutable buffer and ensures it is null-terminated at `length`. | `String` |
+| `wstr_copy`(const String* string) | Returns a fully independent heap-allocated copy of `string`. `NULL` or empty input returns an empty string. | `String` |
 | `wstr_freePtr`(String* string) | Frees the owned storage and resets the struct. | `void` |
 | `wstr_free`(String string) | Frees the owned storage in a by-value string. | `void` |
 | `wstr_clear`(String* string) | Resets the string to length `0` without releasing capacity. | `void` |
