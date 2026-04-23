@@ -1,5 +1,5 @@
 /*
-    wave_writer.h - based on Wave_Writer by Shay Green
+    wav.h - based on Wave_Writer by Shay Green
 
     MIT License
 
@@ -24,20 +24,30 @@
     SOFTWARE.
 
     Single-header WAVE file writer for streaming 16-bit PCM samples to disk.
-    The API uses the `wav_` prefix and writes the final RIFF/WAVE header when the
+    The API uses the wav_ prefix and writes the final RIFF/WAVE header when the
     file is flushed and closed.
 
     USAGE
-    -----
-    In exactly one translation unit, define SHL_WAV_IMPLEMENTATION before
-    including this header to compile the implementation:
+    Include this header in all translation units that need the declarations.
+    Define SHL_WAV_IMPLEMENTATION in exactly one translation unit before the
+    include to compile the implementation:
 
         #define SHL_WAV_IMPLEMENTATION
-        #include "wave_writer.h"
+        #include "wav.h"
 
-    All other translation units include it without the define:
+    Include the header without that define everywhere else:
 
-        #include "wave_writer.h"
+        #include "wav.h"
+
+    CUSTOMISATION
+    The sample type and internal buffer size are controlled by compile-time
+    macros near the top of the implementation. If you need different buffering
+    or output behavior, adjust those constants or the implementation section.
+
+    NOTES
+    wav_init opens the output file and prepares the buffer, wav_write streams
+    16-bit samples into it, and wav_flush writes the final header before
+    optionally closing the file handle.
 */
 
 #ifndef SHL_WAVE_WRITER_H

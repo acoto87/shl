@@ -1,4 +1,4 @@
-/*  
+/*
     list.h - acoto87 (acoto87@gmail.com)
 
     MIT License
@@ -25,7 +25,23 @@
 
     Single-header macro library to declare and define strongly typed dynamic
     lists with indexed access plus search, sort, and range operations.
+
+    USAGE
+    Include this header in one or more C translation units, then use
+    shlDeclareList(name, type) in a header and shlDefineList(name, type) in a
+    single C file.
+
+    CUSTOMISATION
+    Provide a default value for out-of-range reads, an equality function for
+    search-related helpers, and a free function when the item type owns
+    resources. The generated list stores values by copy.
+
+    NOTES
+    The implementation is header-only and uses dynamic allocation internally.
+    Call Free when finished with a list instance, and prefer AddRange or
+    InsertRange for bulk operations.
 */
+
 #ifndef SHL_LIST_H
 #define SHL_LIST_H
 

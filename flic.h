@@ -1,4 +1,4 @@
-/*  
+/*
     flic.h - acoto87 (acoto87@gmail.com)
 
     MIT License
@@ -28,17 +28,28 @@
     https://github.com/aseprite/flic
 
     USAGE
-    -----
-    In exactly one translation unit, define SHL_FLIC_IMPLEMENTATION before
-    including this header to compile the implementation:
+    Include this header in all translation units that need the declarations.
+    Define SHL_FLIC_IMPLEMENTATION in exactly one translation unit before the
+    include to compile the implementation:
 
         #define SHL_FLIC_IMPLEMENTATION
         #include "flic.h"
 
-    All other translation units include it without the define:
+    Include the header without that define everywhere else:
 
         #include "flic.h"
+
+    CUSTOMISATION
+    The reader is self-contained and does not expose allocator or I/O hooks.
+    If you need different file handling or memory behavior, adjust the
+    implementation section directly.
+
+    NOTES
+    flicOpen initializes a Flic from a file on disk, flicReadFrame decodes the
+    next frame into caller-provided buffers, and flicClose releases file-backed
+    resources when you are done.
 */
+
 #ifndef SHL_FLIC_H
 #define SHL_FLIC_H
 
@@ -146,7 +157,7 @@ static void flic__readBlackChunk(Flic* flic, FlicFrame* frame)
 
 static void flic__readCopyChunk(Flic* flic, FlicFrame* frame)
 {
-    for (int32_t y = 0; y < flic->height; ++y) 
+    for (int32_t y = 0; y < flic->height; ++y)
     {
         uint16_t* row = frame->pixels + frame->rowStride * y;
         for (int32_t x = 0; x < flic->width; ++x)
@@ -159,7 +170,7 @@ static void flic__readColorChunk(Flic* flic, FlicFrame* frame, bool is64ColorMap
     uint16_t npackets = flic__read16(flic->file);
 
     uint8_t i = 0;
-    while (npackets--) 
+    while (npackets--)
     {
         i += flic__read8(flic->file); // Colors to skip
 
@@ -167,13 +178,13 @@ static void flic__readColorChunk(Flic* flic, FlicFrame* frame, bool is64ColorMap
         if (colors == 0)
             colors = FLI_COLORS_SIZE / 3;
 
-        for (int32_t j = 0; j < colors; ++j) 
+        for (int32_t j = 0; j < colors; ++j)
         {
             uint8_t r = flic__read8(flic->file);
             uint8_t g = flic__read8(flic->file);
             uint8_t b = flic__read8(flic->file);
-            
-            if (is64ColorMap) 
+
+            if (is64ColorMap)
             {
                 r = (uint8_t)(255 * ((float)r / 63));
                 g = (uint8_t)(255 * ((float)g / 63));
@@ -189,23 +200,23 @@ static void flic__readColorChunk(Flic* flic, FlicFrame* frame, bool is64ColorMap
 
 static void flic__readBrunChunk(Flic* flic, FlicFrame* frame)
 {
-    for (int32_t y = 0; y < flic->height; ++y) 
+    for (int32_t y = 0; y < flic->height; ++y)
     {
         uint16_t* row = frame->pixels + frame->rowStride * y;
 
         int32_t x = 0;
         flic__read8(flic->file); // Ignore number of packets (we read until x == m_width)
 
-        while (x < flic->width) 
+        while (x < flic->width)
         {
             int8_t count = (int8_t)flic__read8(flic->file);
-            if (count >= 0) 
+            if (count >= 0)
             {
                 uint8_t color = flic__read8(flic->file);
                 while (count-- && x < flic->width)
                     row[x++] = color | FLI_PXL_CHANGE;
             }
-            else 
+            else
             {
                 count = -count;
                 while (count--)
@@ -220,25 +231,25 @@ static void flic__readLcChunk(Flic* flic, FlicFrame* frame)
     uint16_t skipLines = flic__read16(flic->file);
     uint16_t nlines = flic__read16(flic->file);
 
-    for (int32_t y = skipLines; y < skipLines + nlines; ++y) 
+    for (int32_t y = skipLines; y < skipLines + nlines; ++y)
     {
         uint16_t* row = frame->pixels + frame->rowStride * y;
 
         int32_t x = 0;
         uint8_t npackets = flic__read8(flic->file);
-        while (npackets-- && x < flic->width) 
+        while (npackets-- && x < flic->width)
         {
             uint8_t skip = flic__read8(flic->file);
 
             x += skip;
 
             int8_t count = (int8_t)flic__read8(flic->file);
-            if (count >= 0) 
+            if (count >= 0)
             {
                 while (count--)
                     row[x++] = flic__read8(flic->file) | FLI_PXL_CHANGE;
             }
-            else 
+            else
             {
                 count = -count;
 
@@ -255,7 +266,7 @@ static void flic__readDeltaChunk(Flic* flic, FlicFrame* frame)
     uint16_t nlines = flic__read16(flic->file);
     int32_t y = 0;
 
-    while (nlines--) 
+    while (nlines--)
     {
         int16_t word = (int16_t)flic__read16(flic->file);
         while (word < 0)
@@ -266,14 +277,14 @@ static void flic__readDeltaChunk(Flic* flic, FlicFrame* frame)
             }
             else // Only last pixel has changed
             {
-                if (y >= 0 && y < flic->height) 
+                if (y >= 0 && y < flic->height)
                 {
                     uint16_t* row = frame->pixels + frame->rowStride * y;
                     row[flic->width - 1] = (word & 0xff) | FLI_PXL_CHANGE;
                 }
 
                 ++y;
-                
+
                 if (nlines-- == 0)
                     return;
             }
@@ -285,7 +296,7 @@ static void flic__readDeltaChunk(Flic* flic, FlicFrame* frame)
 
         int32_t x = 0;
 
-        while (npackets--) 
+        while (npackets--)
         {
             x += flic__read8(flic->file); // Skip pixels
 
@@ -293,31 +304,31 @@ static void flic__readDeltaChunk(Flic* flic, FlicFrame* frame)
 
             uint16_t* row = frame->pixels + frame->rowStride * y;
 
-            if (count >= 0) 
+            if (count >= 0)
             {
-                while (count-- && x < flic->width) 
+                while (count-- && x < flic->width)
                 {
                     uint8_t color1 = flic__read8(flic->file);
                     uint8_t color2 = flic__read8(flic->file);
 
                     row[x++] = color1 | FLI_PXL_CHANGE;
 
-                    if (x < flic->width) 
+                    if (x < flic->width)
                         row[x++] = color2 | FLI_PXL_CHANGE;
                 }
             }
-            else 
+            else
             {
                 count = -count;
 
                 uint8_t color1 = flic__read8(flic->file);
                 uint8_t color2 = flic__read8(flic->file);
 
-                while (count-- && x < flic->width) 
+                while (count-- && x < flic->width)
                 {
                     row[x++] = color1 | FLI_PXL_CHANGE;
 
-                    if (x < flic->width) 
+                    if (x < flic->width)
                         row[x++] = color2 | FLI_PXL_CHANGE;
                 }
             }
@@ -384,13 +395,13 @@ bool flicOpen(Flic* flic, const char* filename)
     flic->frames = flic__read16(flic->file);
     flic->width  = flic__read16(flic->file);
     flic->height = flic__read16(flic->file);
-    
+
     flic__read16(flic->file); // Color depth (it is interpreted as 8bpp anyway)
     flic__read16(flic->file); // Skip flags
 
     flic->speed = flic__read32(flic->file);
 
-    if (magic == FLI_MAGIC_NUMBER) 
+    if (magic == FLI_MAGIC_NUMBER)
     {
         if (flic->speed == 0)
             flic->speed = 70;
@@ -398,7 +409,7 @@ bool flicOpen(Flic* flic, const char* filename)
             flic->speed = 1000 * flic->speed / 70;
     }
 
-    if (magic == FLC_MAGIC_NUMBER) 
+    if (magic == FLC_MAGIC_NUMBER)
     {
         // Offset to the first and second frame header values
         flic__seek(flic->file, 80);
@@ -435,7 +446,7 @@ bool flicReadFrame(Flic* flic, FlicFrame* frame)
 
             break;
         }
-        
+
         case 1:
         {
             if (flic->oframe2)
@@ -451,7 +462,7 @@ bool flicReadFrame(Flic* flic, FlicFrame* frame)
     uint16_t magic = flic__read16(flic->file);
     if (magic != FLI_FRAME_MAGIC_NUMBER)
         return false;
-  
+
     uint16_t chunks = flic__read16(flic->file);
     for (int32_t i = 0; i < 8; ++i)       // Padding
         flic__read8(flic->file);

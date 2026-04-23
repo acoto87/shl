@@ -27,16 +27,26 @@
     allocations, structural validation helpers, and configurable diagnostics.
 
     USAGE
-    -----
-    In exactly one translation unit, define SHL_MEMORY_ZONE_IMPLEMENTATION
-    before including this header to compile the implementation:
+    Include this header in all translation units that need the declarations.
+    Define SHL_MEMORY_ZONE_IMPLEMENTATION in exactly one translation unit
+    before the include to compile the implementation:
 
         #define SHL_MEMORY_ZONE_IMPLEMENTATION
         #include "memzone.h"
 
-    All other translation units include it without the define:
+    Include the header without that define everywhere else:
 
         #include "memzone.h"
+
+    CUSTOMISATION
+    Override MZ_MALLOC and MZ_FREE before the implementation include if you
+    need custom allocation. Optional hooks include MZ_ASSERT, MZ_DEBUG, and
+    MZ_PRIVATE_API for diagnostics and internal-structure exposure.
+
+    NOTES
+    The allocator returns stable pointers until the zone is reset or destroyed.
+    Use mz_setReporter to install custom diagnostics, mz_validate to sanity-
+    check the zone, and mz_free only with pointers that came from the zone.
 */
 #ifndef SHL_MEMORY_ZONE_H
 #define SHL_MEMORY_ZONE_H

@@ -27,16 +27,26 @@
     seeking, automatic growth on writes, and endian-aware integer helpers.
 
     USAGE
-    -----
-    In exactly one translation unit, define SHL_MEMORY_BUFFER_IMPLEMENTATION
-    before including this header to compile the implementation:
+    Include this header in all translation units that need the declarations.
+    Define SHL_MEMORY_BUFFER_IMPLEMENTATION in exactly one translation unit
+    before the include to compile the implementation:
 
         #define SHL_MEMORY_BUFFER_IMPLEMENTATION
         #include "memory_buffer.h"
 
-    All other translation units include it without the define:
+    Include the header without that define everywhere else:
 
         #include "memory_buffer.h"
+
+    CUSTOMISATION
+    The implementation is self-contained and uses the standard C allocator
+    directly. If you need different allocation behavior, adjust the
+    implementation section itself.
+
+    NOTES
+    The buffer tracks a current read/write cursor, can grow automatically when
+    seeking or writing past the current end, and provides helpers for endian-
+    aware primitive reads and writes.
 */
 #ifndef SHL_MEMORY_BUFFER_H
 #define SHL_MEMORY_BUFFER_H
