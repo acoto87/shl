@@ -2402,6 +2402,100 @@ static void test_wsv_nextToken_stress_counts_all_tokens(void)
 }
 
 /* =========================================================================
+   wstr_copy
+   ========================================================================= */
+
+static void test_wstr_copy_null_returns_empty(void)
+{
+    String result = wstr_copy(NULL);
+    TEST_ASSERT_TRUE(wstr_isEmpty(&result));
+    TEST_ASSERT_EQUAL_size_t(0, result.length);
+    wstr_free(result);
+}
+
+static void test_wstr_copy_empty_string_returns_empty(void)
+{
+    String original = wstr_make();
+    String result = wstr_copy(&original);
+    TEST_ASSERT_TRUE(wstr_isEmpty(&result));
+    TEST_ASSERT_EQUAL_size_t(0, result.length);
+    wstr_free(result);
+}
+
+static void test_wstr_copy_same_content(void)
+{
+    String original = wstr_fromCString("hello");
+    String result = wstr_copy(&original);
+    TEST_ASSERT_EQUAL_size_t(5, result.length);
+    TEST_ASSERT_EQUAL_STRING("hello", result.data);
+    wstr_free(original);
+    wstr_free(result);
+}
+
+static void test_wstr_copy_data_not_aliased(void)
+{
+    String original = wstr_fromCString("hello");
+    String result = wstr_copy(&original);
+    TEST_ASSERT_TRUE(original.data != result.data);
+    wstr_free(original);
+    wstr_free(result);
+}
+
+static void test_wstr_copy_is_null_terminated(void)
+{
+    String original = wstr_fromCString("hello");
+    String result = wstr_copy(&original);
+    TEST_ASSERT_NOT_NULL(result.data);
+    TEST_ASSERT_EQUAL_CHAR(0, result.data[result.length]);
+    wstr_free(original);
+    wstr_free(result);
+}
+
+static void test_wstr_copy_modifying_copy_does_not_affect_original(void)
+{
+    String original = wstr_fromCString("hello");
+    String copy = wstr_copy(&original);
+    wstr_assignCString(&copy, "world");
+    TEST_ASSERT_EQUAL_STRING("hello", original.data);
+    wstr_free(original);
+    wstr_free(copy);
+}
+
+static void test_wstr_copy_modifying_original_does_not_affect_copy(void)
+{
+    String original = wstr_fromCString("hello");
+    String copy = wstr_copy(&original);
+    wstr_assignCString(&original, "world");
+    TEST_ASSERT_EQUAL_STRING("hello", copy.data);
+    wstr_free(original);
+    wstr_free(copy);
+}
+
+static void test_wstr_copy_of_copy(void)
+{
+    String original = wstr_fromCString("hello");
+    String copy1 = wstr_copy(&original);
+    String copy2 = wstr_copy(&copy1);
+    TEST_ASSERT_EQUAL_STRING("hello", copy2.data);
+    TEST_ASSERT_TRUE(copy1.data != copy2.data);
+    wstr_free(original);
+    wstr_free(copy1);
+    wstr_free(copy2);
+}
+
+static void test_wstr_copy_outlives_original(void)
+{
+    String copy;
+    {
+        String original = wstr_fromCString("hello");
+        copy = wstr_copy(&original);
+        wstr_free(original);
+    }
+    TEST_ASSERT_EQUAL_STRING("hello", copy.data);
+    wstr_free(copy);
+}
+
+/* =========================================================================
    main
    ========================================================================= */
 
@@ -2774,6 +2868,17 @@ int main(void)
     RUN_TEST(test_build_path_with_format);
     RUN_TEST(test_wstr_stress_append_and_trim_pipeline);
     RUN_TEST(test_wsv_nextToken_stress_counts_all_tokens);
+
+    /* wstr_copy */
+    RUN_TEST(test_wstr_copy_null_returns_empty);
+    RUN_TEST(test_wstr_copy_empty_string_returns_empty);
+    RUN_TEST(test_wstr_copy_same_content);
+    RUN_TEST(test_wstr_copy_data_not_aliased);
+    RUN_TEST(test_wstr_copy_is_null_terminated);
+    RUN_TEST(test_wstr_copy_modifying_copy_does_not_affect_original);
+    RUN_TEST(test_wstr_copy_modifying_original_does_not_affect_copy);
+    RUN_TEST(test_wstr_copy_of_copy);
+    RUN_TEST(test_wstr_copy_outlives_original);
 
     return UNITY_END();
 }

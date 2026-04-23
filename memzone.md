@@ -60,10 +60,11 @@ The memory allocator allows the following operations:
 | `mz_init`(size_t maxSize) | Creates and initializes a memory zone with the specified `maxSize`. | memzone_t* |
 | `mz_destroy`(memzone_t* zone) | Releases a zone previously created with `mz_init`. | void |
 | `mz_reset`(memzone_t* zone) | Resets a zone back to a single free block without releasing its backing memory. | void |
-| `mz_alloc`(memzone_t* zone, size_t size) | Allocates a block of memory from the specified zone. Size `0` returns `NULL`. | void* |
-| `mz_allocAligned`(memzone_t* zone, size_t size, size_t alignment) | Allocates a block with explicit `16`, `32`, or `64` byte pointer alignment. Invalid alignments return `NULL`. | void* |
+| `mz_alloc`(memzone_t* zone, size_t size) | Allocates a zero-initialized block of memory from the specified zone. Size `0` returns `NULL`. | void* |
+| `mz_allocAligned`(memzone_t* zone, size_t size, size_t alignment) | Allocates a zero-initialized block with explicit `16`, `32`, or `64` byte pointer alignment. Invalid alignments return `NULL`. | void* |
 | `mz_setReporter`(memzone_t* zone, mz_reporter_t reporter, void* userData) | Replaces the default `stderr` diagnostics hook for allocation failures, invalid frees, and validation failures. Pass `NULL` to silence reports. | void |
 | `mz_free`(memzone_t* zone, void* p) | Frees a previously allocated block of memory. Unknown pointers are ignored. | void |
+| `mz_realloc`(memzone_t* zone, void* p, size_t size) | Resizes a live allocation. `NULL` pointer behaves like `mz_alloc`. Zero size frees `p` and returns `NULL`. Returns the (possibly new) pointer, or `NULL` on failure. | void* |
 | `mz_contains`(const memzone_t* zone, const void* p) | Returns whether `p` currently belongs to a live allocation in the zone. | bool |
 | `mz_allocationSize`(const memzone_t* zone, const void* p) | Returns the aligned size reserved for a live allocation, or `0` if not found. | size_t |
 | `mz_validate`(const memzone_t* zone) | Validates the zone internal structure and accounting invariants. | bool |
