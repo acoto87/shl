@@ -25,32 +25,38 @@
 
     Single-header string library providing two complementary types:
 
-      StringView  - a non-owning, read-only view into an existing character buffer
-                    (wsv_* functions, prefix stands for "wstr view")
+      StringView  - a non-owning, read-only view into an existing character
+                    buffer (wsv_* functions; prefix stands for "wstr view")
       String      - a heap-allocated, null-terminated, mutable string
                     (wstr_* functions)
 
     USAGE
-    -----
-    In exactly one translation unit, define SHL_WSTR_IMPLEMENTATION before
-    including this header to compile the implementation:
+    Include this header in all translation units that need the declarations.
+    Define SHL_WSTR_IMPLEMENTATION in exactly one translation unit before the
+    include to compile the implementation:
 
         #define SHL_WSTR_IMPLEMENTATION
         #include "wstr.h"
 
-    All other translation units include it without the define:
+    Include the header without that define everywhere else:
 
         #include "wstr.h"
 
     CUSTOMISATION
-    -------------
-    Override the allocator before the implementation include if needed:
+    Override the allocation hooks before the implementation include if you
+    need custom memory management:
 
         #define WSTR_MALLOC(sz)       my_malloc(sz)
         #define WSTR_REALLOC(p, sz)   my_realloc(p, sz)
         #define WSTR_FREE(p)          my_free(p)
         #define SHL_WSTR_IMPLEMENTATION
         #include "wstr.h"
+
+    NOTES
+    StringView never owns memory and always refers to external storage.
+    String owns its buffer, keeps it null-terminated, and must be released with
+    wstr_free or wstr_freePtr when no longer needed. Functions that mutate a
+    String may reallocate its buffer.
 */
 
 #ifndef SHL_WSTR_H
