@@ -26,6 +26,138 @@ The information of the headers of the _zone_ and _blocks_ are part of the `maxSi
 
 At the beginning, when the _zone_ is initialized there is only one _block_ with all the free memory, except for the information of the header of the _zone_ and the header of the _block_. When the user allocates memory, the allocator finds the next suitable free block, splits it only when the remainder can form a valid aligned block, and returns a stable pointer to the payload. When the user deallocates a pointer, the allocator finds the _block_ for that pointer, marks it as free, and merges it with sibling _blocks_ if they are also empty. Invalid frees are ignored for allocator safety, but they are now reported through the runtime diagnostics hook.
 
+## Memory layout scenarios
+
+Legend:
+
+* `ZH`: `memzone_t` header up to `blockList`
+* `BH`: `memblock_t` header for one block
+* `F`: free payload bytes
+* `A`: allocated payload bytes visible to the caller
+* `P`: padding
+* `pad`: alignment padding that belongs to an allocated block
+
+### `mz_init()` / `mz_reset()`
+
+The zone starts as one free block covering the whole payload span.
+
+```text
+| ZH | BH FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF |
+       ^ rover
+```
+
+### `mz_alloc()`
+
+If a free block is larger than needed, the allocator splits it and leaves a new free tail block.
+
+```text
+before:
+| ZH | BH FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF |
+
+after:
+| ZH | BH AAAAAAAA | BH FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF |
+          ^ user     ^ rover
+```
+
+If the remainder would be too small to hold `BH + mz_alignment()` bytes, the allocation takes the entire free block instead of creating an unusable tail.
+
+```text
+before:
+| ZH | BH FFFFFFFFFFFFFFF |
+
+after:
+| ZH | BH AAAAAAAAAAAAAAA |
+       ^ rover/user
+```
+
+### `mz_allocAligned()`
+
+Aligned allocations may place padding between the block header and the returned pointer. That padding still belongs to the same live block.
+
+```text
+| ZH | BH PPP AAAAAAAA | BH FFFFFFFFFFFFFFFFFFFFFFFFF |
+       ^ block start
+              ^ user
+```
+
+### `mz_free()`
+
+Freeing a block between live neighbors leaves a standalone free span.
+
+```text
+before:
+| ZH | BH AAAAA | BH BBBBB | BH CCCCC |
+
+after mz_free(B):
+| ZH | BH AAAAA | BH FFFFF | BH CCCCC |
+                  ^ rover
+```
+
+If either neighbor is already free, `mz_free()` coalesces immediately so the list never retains adjacent free blocks.
+
+Deleting block B:
+```text
+merge with next before:
+| ZH | BH AAAAA | BH BBBBB | BH FFFFF |
+merge with next after:
+| ZH | BH AAAAA | BH FFFFFFFFFFFFFF |
+
+merge with previous before:
+| ZH | BH FFFFF | BH BBBBB | BH CCCCC |
+merge with previous after:
+| ZH | BH FFFFFFFFFFFFFF | BH CCCCC |
+
+merge with both sides before:
+| ZH | BH FFFFF | BH BBBBB | BH FFFFF |
+merge with both sides after:
+| ZH | BH FFFFFFFFFFFFFFFFFFFFFFFFFF |
+```
+
+### `mz_realloc()`
+
+Case 1: if the current block already has enough capacity, the pointer and layout stay unchanged.
+
+```text
+| ZH | BH AAAAAAAAAAAAAAA | BH FFFFFFFFFFFFFFFFFFFFFFFFF |
+          ^ user unchanged
+```
+
+Case 2a: if the next block is free and large enough, `mz_realloc()` grows in place. The allocator only consumes the extra bytes required for the new request. If the remainder can still form a valid aligned block, that tail stays free.
+
+```text
+before:
+| ZH | BH AAAAA | BH FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF |
+          ^ user  ^ rover
+
+after grow:
+| ZH | BH AAAAAAAAAAAA | BH FFFFFFFFFFFFFFFFFFFFFFFFFFF |
+          ^ same user    ^ rover
+```
+
+This is the important rule for the recent fix: growing an allocation into a free block at the end of the zone must not make the allocation appear to own the entire tail unless that tail is too small to remain a valid block.
+
+Case 2b: if the leftover bytes would be too small to hold a valid free block, `mz_realloc()` absorbs the whole adjacent free block.
+
+```text
+before:
+| ZH | BH AAAAA | BH FFFFFFF |
+
+after grow:
+| ZH | BH AAAAAAAAAAAAAAAA |
+          ^ same user
+```
+
+Case 3: if in-place growth is not possible, `mz_realloc()` allocates a new block, copies the old payload, and frees the previous block.
+
+```text
+before:
+| ZH | BH AAAAA | BH CCCCC | BH FFFFFFFFFFFFFFFFFFFFFFF |
+
+after:
+| ZH | BH FFFFF | BH CCCCC | BH AAAAAAAAAAAA | BH FFFF |
+                                ^ new user
+```
+
 The validated structural invariants are:
 
 * blocks cover the zone payload span exactly with no gaps or overlaps

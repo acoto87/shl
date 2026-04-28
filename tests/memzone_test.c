@@ -739,6 +739,71 @@ static void test_mz_realloc_merges_adjacent_empty_block_in_place(void)
     mz_destroy(zone);
 }
 
+static void test_mz_realloc_in_place_growth_preserves_remaining_tail_free_block(void)
+{
+    memzone_t* zone = createZoneOrFail(4096);
+    size_t originalAllocSize = 0;
+    size_t freeBefore = 0;
+    size_t expectedFreeAfter = 0;
+    void* p = mz_alloc(zone, 64);
+    void* q = mz_alloc(zone, 64);
+    TEST_ASSERT_NOT_NULL(p);
+    TEST_ASSERT_NOT_NULL(q);
+
+    originalAllocSize = mz_allocationSize(zone, p);
+
+    mz_free(zone, q);
+    freeBefore = mz_usableFreeSize(zone);
+    expectedFreeAfter = freeBefore - (alignUp(128) - originalAllocSize);
+    assertZoneInvariants(zone);
+
+    TEST_ASSERT_EQUAL_PTR(p, mz_realloc(zone, p, 128));
+    TEST_ASSERT_EQUAL_INT32(2, mz_blockCount(zone));
+    TEST_ASSERT_EQUAL_size_t(expectedFreeAfter, mz_usableFreeSize(zone));
+
+    void* r = mz_alloc(zone, 64);
+    TEST_ASSERT_NOT_NULL(r);
+    assertZoneInvariants(zone);
+
+    mz_free(zone, r);
+    mz_free(zone, p);
+    assertZoneInvariants(zone);
+    mz_destroy(zone);
+}
+
+static void test_mz_realloc_in_place_growth_preserves_tail_after_aligned_alloc(void)
+{
+    memzone_t* zone = createZoneOrFail(4096);
+    size_t originalAllocSize = 0;
+    size_t freeBefore = 0;
+    size_t expectedFreeAfter = 0;
+    void* p = mz_allocAligned(zone, 64, 64);
+    void* q = mz_alloc(zone, 64);
+    TEST_ASSERT_NOT_NULL(p);
+    TEST_ASSERT_NOT_NULL(q);
+
+    originalAllocSize = mz_allocationSize(zone, p);
+
+    mz_free(zone, q);
+    freeBefore = mz_usableFreeSize(zone);
+    expectedFreeAfter = freeBefore - (alignUp(128) - originalAllocSize);
+    assertZoneInvariants(zone);
+
+    TEST_ASSERT_EQUAL_PTR(p, mz_realloc(zone, p, 128));
+    TEST_ASSERT_EQUAL_UINT64(0, (unsigned long long)((uintptr_t)p % 64));
+    TEST_ASSERT_EQUAL_INT32(2, mz_blockCount(zone));
+    TEST_ASSERT_EQUAL_size_t(expectedFreeAfter, mz_usableFreeSize(zone));
+
+    void* r = mz_alloc(zone, 64);
+    TEST_ASSERT_NOT_NULL(r);
+    assertZoneInvariants(zone);
+
+    mz_free(zone, r);
+    mz_free(zone, p);
+    assertZoneInvariants(zone);
+    mz_destroy(zone);
+}
+
 static void test_mz_realloc_adjacent_block_too_small_falls_back_to_new_alloc(void)
 {
     memzone_t* zone = createZoneOrFail(4096);
@@ -920,6 +985,8 @@ int main(void)
     RUN_TEST(test_mz_realloc_same_size_returns_same_pointer);
     RUN_TEST(test_mz_realloc_fits_in_existing_block_capacity);
     RUN_TEST(test_mz_realloc_merges_adjacent_empty_block_in_place);
+    RUN_TEST(test_mz_realloc_in_place_growth_preserves_remaining_tail_free_block);
+    RUN_TEST(test_mz_realloc_in_place_growth_preserves_tail_after_aligned_alloc);
     RUN_TEST(test_mz_realloc_adjacent_block_too_small_falls_back_to_new_alloc);
     RUN_TEST(test_mz_realloc_no_adjacent_empty_block_allocates_new);
     RUN_TEST(test_mz_realloc_case1_preserves_data);
