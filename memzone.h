@@ -47,6 +47,9 @@
     The allocator returns stable pointers until the zone is reset or destroyed.
     Use mz_setReporter to install custom diagnostics, mz_validate to sanity-
     check the zone, and mz_free only with pointers that came from the zone.
+
+    See memzone.md file for more information about memory layout for each allocation/deallocation.
+
 */
 #ifndef SHL_MEMORY_ZONE_H
 #define SHL_MEMORY_ZONE_H
@@ -625,6 +628,7 @@ void* mz_realloc(memzone_t* zone, void* p, size_t size)
     }
 
     size_t currentAllocSize = mz__allocationSize(block);
+    size_t headerSize = mz__headerSize();
 
     // Case 1: block already has sufficient capacity
     if (currentAllocSize >= alignedSize)
@@ -636,17 +640,38 @@ void* mz_realloc(memzone_t* zone, void* p, size_t size)
     memblock_t* next = block->next;
     if (next != block && MZ__IS_BLOCK_EMPTY(next) && mz__isNextBlockAdjacent(block))
     {
-        if (currentAllocSize + next->size >= alignedSize)
+        size_t extraNeeded = alignedSize - currentAllocSize;
+        if (next->size >= extraNeeded)
         {
-            size_t nextSize = next->size;
-            block->size += nextSize;
-            block->next = next->next;
-            block->next->prev = block;
-            zone->usedSize += nextSize - mz__headerSize();
-            if (zone->rover == next)
+            size_t remainingSize = next->size - extraNeeded;
+            if (remainingSize >= headerSize + mz_alignment())
             {
-                zone->rover = block->next;
+                memblock_t* newBlock = MZ__POINTER_OFFSET(memblock_t, next, extraNeeded);
+                newBlock->size = remainingSize;
+                newBlock->user = NULL;
+                newBlock->prev = block;
+                newBlock->next = next->next;
+                newBlock->next->prev = newBlock;
+
+                block->size += extraNeeded;
+                block->next = newBlock;
+
+                zone->usedSize += extraNeeded;
+                zone->rover = newBlock;
             }
+            else
+            {
+                size_t nextSize = next->size;
+                block->size += nextSize;
+                block->next = next->next;
+                block->next->prev = block;
+                zone->usedSize += nextSize - mz__headerSize();
+                if (zone->rover == next)
+                {
+                    zone->rover = block->next;
+                }
+            }
+
             mz__debugAssertValid(zone);
             return p;
         }
