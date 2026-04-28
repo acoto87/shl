@@ -159,7 +159,7 @@
         \
         map->loadFactor = oldCapacity; \
         map->capacity = 1 << (32 - (--map->shift)); \
-        map->entries = (typeName ## __Entry__*)calloc(map->capacity, sizeof(typeName ## __Entry__)); \
+        map->entries = (typeName ## __Entry__*)SHL_CALLOC((size_t)map->capacity, sizeof(typeName ## __Entry__)); \
         map->count = 0; \
         \
         for(int32_t i = 0; i < oldCapacity; i++) \

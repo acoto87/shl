@@ -1289,6 +1289,86 @@ static void test_wsv_toString_empty_view(void)
 }
 
 /* =========================================================================
+   wsv_fromCStringFormat / wsv_fromCStringFormatv
+   ========================================================================= */
+
+static StringView test_wsv__fromCStringFormatv_helper(char* buffer, size_t capacity, const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    StringView view = wsv_fromCStringFormatv(buffer, capacity, fmt, args);
+    va_end(args);
+    return view;
+}
+
+static void test_wsv_fromCStringFormat_simple_format(void)
+{
+    char buf[32];
+    StringView sv = wsv_fromCStringFormat(buf, sizeof(buf), "item_%s_%d", "x", 7);
+    TEST_ASSERT_EQUAL_size_t(8, sv.length);
+    ASSERT_SV_EQ("item_x_7", sv);
+    TEST_ASSERT_EQUAL_CHAR(0, buf[sv.length]);
+}
+
+static void test_wsv_fromCStringFormat_result_points_into_buffer(void)
+{
+    /* The view must borrow the caller's buffer — no hidden allocation */
+    char buf[16];
+    StringView sv = wsv_fromCStringFormat(buf, sizeof(buf), "hello");
+    TEST_ASSERT_EQUAL_PTR(buf, sv.data);
+}
+
+static void test_wsv_fromCStringFormat_exact_fit(void)
+{
+    /* "hello" is 5 chars; capacity 6 leaves room for exactly the text + null */
+    char buf[6];
+    StringView sv = wsv_fromCStringFormat(buf, sizeof(buf), "%s", "hello");
+    TEST_ASSERT_EQUAL_size_t(5, sv.length);
+    ASSERT_SV_EQ("hello", sv);
+    TEST_ASSERT_EQUAL_CHAR(0, buf[5]);
+}
+
+static void test_wsv_fromCStringFormat_truncation(void)
+{
+    /* Buffer holds 7 chars + null; "hello world" is 11 chars — must truncate */
+    char buf[8];
+    StringView sv = wsv_fromCStringFormat(buf, sizeof(buf), "hello world");
+    TEST_ASSERT_EQUAL_size_t(7, sv.length);
+    ASSERT_SV_EQ("hello w", sv);
+    /* Buffer is still null-terminated */
+    TEST_ASSERT_EQUAL_CHAR(0, buf[7]);
+}
+
+static void test_wsv_fromCStringFormat_null_buffer_gives_empty(void)
+{
+    StringView sv = wsv_fromCStringFormat(NULL, 16, "hello");
+    TEST_ASSERT_TRUE(wsv_isEmpty(sv));
+}
+
+static void test_wsv_fromCStringFormat_zero_capacity_gives_empty(void)
+{
+    char buf[8];
+    StringView sv = wsv_fromCStringFormat(buf, 0, "hello");
+    TEST_ASSERT_TRUE(wsv_isEmpty(sv));
+}
+
+static void test_wsv_fromCStringFormat_null_fmt_gives_empty(void)
+{
+    char buf[8];
+    StringView sv = wsv_fromCStringFormat(buf, sizeof(buf), NULL);
+    TEST_ASSERT_TRUE(wsv_isEmpty(sv));
+}
+
+static void test_wsv_fromCStringFormatv_formats_arguments(void)
+{
+    char buf[16];
+    StringView sv = test_wsv__fromCStringFormatv_helper(buf, sizeof(buf), "%s:%04d", "id", 7);
+    TEST_ASSERT_EQUAL_size_t(7, sv.length);
+    ASSERT_SV_EQ("id:0007", sv);
+    TEST_ASSERT_EQUAL_CHAR(0, buf[sv.length]);
+}
+
+/* =========================================================================
    wstr_make
    ========================================================================= */
 
@@ -2722,6 +2802,16 @@ int main(void)
     /* wsv_toString */
     RUN_TEST(test_wsv_toString_creates_copy);
     RUN_TEST(test_wsv_toString_empty_view);
+
+    /* wsv_fromCStringFormat / wsv_fromCStringFormatv */
+    RUN_TEST(test_wsv_fromCStringFormat_simple_format);
+    RUN_TEST(test_wsv_fromCStringFormat_result_points_into_buffer);
+    RUN_TEST(test_wsv_fromCStringFormat_exact_fit);
+    RUN_TEST(test_wsv_fromCStringFormat_truncation);
+    RUN_TEST(test_wsv_fromCStringFormat_null_buffer_gives_empty);
+    RUN_TEST(test_wsv_fromCStringFormat_zero_capacity_gives_empty);
+    RUN_TEST(test_wsv_fromCStringFormat_null_fmt_gives_empty);
+    RUN_TEST(test_wsv_fromCStringFormatv_formats_arguments);
 
     /* wstr_make */
     RUN_TEST(test_wstr_make_zeroed);

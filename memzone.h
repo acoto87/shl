@@ -28,10 +28,10 @@
 
     USAGE
     Include this header in all translation units that need the declarations.
-    Define SHL_MEMORY_ZONE_IMPLEMENTATION in exactly one translation unit
+    Define SHL_MZ_IMPLEMENTATION in exactly one translation unit
     before the include to compile the implementation:
 
-        #define SHL_MEMORY_ZONE_IMPLEMENTATION
+        #define SHL_MZ_IMPLEMENTATION
         #include "memzone.h"
 
     Include the header without that define everywhere else:
@@ -39,9 +39,14 @@
         #include "memzone.h"
 
     CUSTOMISATION
-    Override MZ_MALLOC and MZ_FREE before the implementation include if you
-    need custom allocation. Optional hooks include MZ_ASSERT, MZ_DEBUG, and
-    MZ_PRIVATE_API for diagnostics and internal-structure exposure.
+    Override SHL_MZ_MALLOC and SHL_MZ_FREE before the implementation include if you
+    need custom allocation. Optional hooks include SHL_MZ_ASSERT, SHL_MZ_DEBUG, and
+    SHL_MZ_PRIVATE_API for diagnostics and internal-structure exposure.
+
+    AUDIT
+    For per-zone audit logging (every alloc/free written to a structured text
+    file), include the companion header memzone_audit.h in your implementation
+    translation unit alongside this file.  See memzone_audit.h for details.
 
     NOTES
     The allocator returns stable pointers until the zone is reset or destroyed.
@@ -51,8 +56,8 @@
     See memzone.md file for more information about memory layout for each allocation/deallocation.
 
 */
-#ifndef SHL_MEMORY_ZONE_H
-#define SHL_MEMORY_ZONE_H
+#ifndef SHL_MZ_H
+#define SHL_MZ_H
 
 #include <stdio.h>
 #include <stdint.h>
@@ -60,7 +65,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <math.h>
 
 #ifdef __cplusplus
@@ -78,7 +82,7 @@ typedef enum
 
 typedef void (*mz_reporter_t)(const memzone_t* zone, mz_report_t report, const void* context, const char* message, void* userData);
 
-#if defined(MZ_PRIVATE_API)
+#if defined(SHL_MZ_PRIVATE_API)
 typedef struct memblock_s
 {
     size_t size;                        // size of the block
@@ -119,26 +123,26 @@ float mz_fragmentation(const memzone_t* zone);
 }
 #endif
 
-#ifdef SHL_MEMORY_ZONE_IMPLEMENTATION
+#ifdef SHL_MZ_IMPLEMENTATION
 
-#ifndef MZ_MALLOC
-#define MZ_MALLOC(sz) malloc(sz)
+#ifndef SHL_MZ_MALLOC
+#define SHL_MZ_MALLOC(sz) malloc(sz)
 #endif
 
-#ifndef MZ_FREE
-#define MZ_FREE(p) free(p)
+#ifndef SHL_MZ_FREE
+#define SHL_MZ_FREE(p) free(p)
 #endif
 
-#if defined(MZ_DEBUG) && !defined(MZ_ASSERT)
+#if defined(SHL_MZ_DEBUG) && !defined(SHL_MZ_ASSERT)
 #include <assert.h>
-#define MZ_ASSERT(expr) assert(expr)
+#define SHL_MZ_ASSERT(expr) assert(expr)
 #endif
 
-#ifndef MZ_ASSERT
-#define MZ_ASSERT(expr) ((void)0)
+#ifndef SHL_MZ_ASSERT
+#define SHL_MZ_ASSERT(expr) ((void)0)
 #endif
 
-#if !defined(MZ_PRIVATE_API)
+#if !defined(SHL_MZ_PRIVATE_API)
 typedef struct memblock_s
 {
     size_t size;                        // size of the block
@@ -265,8 +269,8 @@ static bool mz__validationFailure(const memzone_t* zone, const void* context, co
 
 static void mz__debugAssertValid(const memzone_t* zone)
 {
-#if defined(MZ_DEBUG)
-    MZ_ASSERT(mz_validate(zone));
+#if defined(SHL_MZ_DEBUG)
+    SHL_MZ_ASSERT(mz_validate(zone));
 #else
     (void)zone;
 #endif
@@ -360,7 +364,7 @@ memzone_t* mz_init(size_t maxSize)
         return NULL;
     }
 
-    uint8_t* rawZone = (uint8_t*)MZ_MALLOC(maxSize);
+    uint8_t* rawZone = (uint8_t*)SHL_MZ_MALLOC(maxSize);
     memzone_t* zone = (memzone_t*)rawZone;
     if (!zone)
     {
@@ -380,6 +384,7 @@ memzone_t* mz_init(size_t maxSize)
     zone->blockList.prev = &zone->blockList;
 
     zone->rover = &zone->blockList;
+
     mz__debugAssertValid(zone);
 
     return zone;
@@ -387,7 +392,7 @@ memzone_t* mz_init(size_t maxSize)
 
 void mz_destroy(memzone_t* zone)
 {
-    MZ_FREE(zone);
+    SHL_MZ_FREE(zone);
 }
 
 void mz_reset(memzone_t* zone)
@@ -647,11 +652,15 @@ void* mz_realloc(memzone_t* zone, void* p, size_t size)
             if (remainingSize >= headerSize + mz_alignment())
             {
                 memblock_t* newBlock = MZ__POINTER_OFFSET(memblock_t, next, extraNeeded);
+                /* Read next->next before writing any newBlock field: when extraNeeded is
+                   less than sizeof(memblock_t), newBlock overlaps with next's header and
+                   writes to newBlock->size/user would corrupt next->next before it is read. */
+                memblock_t* nextNext = next->next;
                 newBlock->size = remainingSize;
                 newBlock->user = NULL;
                 newBlock->prev = block;
-                newBlock->next = next->next;
-                newBlock->next->prev = newBlock;
+                newBlock->next = nextNext;
+                nextNext->prev = newBlock;
 
                 block->size += extraNeeded;
                 block->next = newBlock;
@@ -908,5 +917,5 @@ float mz_fragmentation(const memzone_t* zone)
     return free > 0 ? ((float)(free - freeMax) / free) * 100 : 0;
 }
 
-#endif // SHL_MEMORY_ZONE_IMPLEMENTATION
-#endif // SHL_MEMORY_ZONE_H
+#endif // SHL_MZ_IMPLEMENTATION
+#endif // SHL_MZ_H
