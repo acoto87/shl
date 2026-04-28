@@ -11,6 +11,7 @@ typedef struct
 {
     const char* source;
     const char* output;
+    const char* extraSource;  /* optional second source file (multi-TU tests) */
 } TestTarget;
 
 typedef enum
@@ -22,18 +23,20 @@ typedef enum
 
 static const TestTarget TestTargets[] =
 {
-    { "tests/array_test.c", "array_test" },
-    { "tests/binary_heap_test.c", "binary_heap_test" },
-    { "tests/flic_test.c", "flic_test" },
-    { "tests/list_test.c", "list_test" },
-    { "tests/map_test.c", "map_test" },
-    { "tests/memory_buffer_test.c", "memory_buffer_test" },
-    { "tests/memzone_test.c", "memzone_test" },
-    { "tests/queue_test.c", "queue_test" },
-    { "tests/set_test.c", "set_test" },
-    { "tests/stack_test.c", "stack_test" },
-    { "tests/wav_test.c", "wav_test" },
-    { "tests/wstr_test.c", "wstr_test" },
+    { "tests/array_test.c",           "array_test",           NULL },
+    { "tests/binary_heap_test.c",     "binary_heap_test",     NULL },
+    { "tests/flic_test.c",            "flic_test",            NULL },
+    { "tests/list_test.c",            "list_test",            NULL },
+    { "tests/map_test.c",             "map_test",             NULL },
+    { "tests/memory_buffer_test.c",   "memory_buffer_test",   NULL },
+    { "tests/memzone_test.c",         "memzone_test",         NULL },
+    { "tests/memzone_audit_test.c",   "memzone_audit_test",   NULL },
+    { "tests/queue_test.c",           "queue_test",           NULL },
+    { "tests/set_test.c",             "set_test",             NULL },
+    { "tests/stack_test.c",           "stack_test",           NULL },
+    { "tests/wav_test.c",             "wav_test",             NULL },
+    { "tests/wstr_test.c",            "wstr_test",            NULL },
+    { "tests/multi_tu_test.c",        "multi_tu_test",        "tests/multi_tu_helper.c" },
 };
 
 static const TestTarget* find_test_target(const char* name)
@@ -97,7 +100,10 @@ static bool build_tests(BuildMode mode, const char* out_dir, const TestTarget* s
         nob_cc(&cmd);
         append_mode_flags(&cmd, mode);
         nob_cc_output(&cmd, output_path);
-        nob_cmd_append(&cmd, target.source, "tests/vendor/unity/src/unity.c", "-lm");
+        nob_cmd_append(&cmd, target.source);
+        if (target.extraSource != NULL)
+            nob_cmd_append(&cmd, target.extraSource);
+        nob_cmd_append(&cmd, "tests/vendor/unity/src/unity.c", "-lm");
 
         if (!nob_cmd_run_sync(cmd))
             return false;

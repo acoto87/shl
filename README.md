@@ -14,6 +14,7 @@ These are single header libraries that I use in my code, much in the style of Se
 * memory_buffer.h: An in-memory buffer implementation with random access (see [memory_buffer.md](https://github.com/acoto87/shl/blob/master/memory_buffer.md)).
 * flic.h: Contains functionalities to read FLIC files (see [flic.md](https://github.com/acoto87/shl/blob/master/flic.md)). It's a C port of the C++ implementation by David Capello's Aseprite FLIC Library: https://github.com/aseprite/flic
 * memzone.h: A simple memory allocator. (see [memzone.md](https://github.com/acoto87/shl/blob/master/memzone.md))
+* memzone_audit.h: Companion header for memzone.h that records every allocator mutation to a structured log file. (see [memzone_audit.md](https://github.com/acoto87/shl/blob/master/memzone_audit.md))
 
 See the tests/*_tests.c files to see how to use them.
 

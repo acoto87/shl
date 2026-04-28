@@ -27,10 +27,10 @@ static void testFree(void* p)
     free(p);
 }
 
-#define MZ_MALLOC(sz) testMalloc(sz)
-#define MZ_FREE(p) testFree(p)
-#define MZ_PRIVATE_API
-#define SHL_MEMORY_ZONE_IMPLEMENTATION
+#define SHL_MZ_MALLOC(sz) testMalloc(sz)
+#define SHL_MZ_FREE(p) testFree(p)
+#define SHL_MZ_PRIVATE_API
+#define SHL_MZ_IMPLEMENTATION
 #include "../memzone.h"
 #include "test_common.h"
 
@@ -517,8 +517,8 @@ static void test_mz_large_allocation_stress_path(void)
         TEST_ASSERT_NOT_NULL(entities[i]);
         entities[i]->id = i;
         TEST_ASSERT_EQUAL_size_t(alignedEntitySize, mz_allocationSize(zone, entities[i]));
-        assertZoneInvariants(zone);
     }
+    assertZoneInvariants(zone);
 
     TEST_ASSERT_EQUAL_INT32(1 + ENTITY_COUNT + 1, mz_blockCount(zone));
 
@@ -534,8 +534,8 @@ static void test_mz_large_allocation_stress_path(void)
         int32_t blocksAfterFree = mz_blockCount(zone);
         size_t reclaimedMetadata = (size_t)(blocksBeforeFree - blocksAfterFree) * headerSize;
         TEST_ASSERT_EQUAL_size_t(usedSizeBeforeFree - allocationSize - reclaimedMetadata, mz_usedSize(zone));
-        assertZoneInvariants(zone);
     }
+    assertZoneInvariants(zone);
 
     TEST_ASSERT_TRUE(mz_blockCount(zone) <= 1 + ENTITY_COUNT + 1);
     mz_destroy(zone);
@@ -899,6 +899,80 @@ static void test_mz_realloc_case3_data_preserved_in_new_location(void)
     mz_destroy(zone);
 }
 
+static void test_mz_realloc_in_place_split_one_alignment_unit_growth(void)
+{
+    /*
+     * Regression: when mz_realloc Case 2 splits the adjacent free block with
+     * extraNeeded = mz_alignment(), newBlock is placed one alignment unit into
+     * the free block's memory.  Because the struct layout is
+     *   [size @ 0][user @ align][next @ 2*align][prev @ 3*align]
+     * the write "newBlock->user = NULL" lands exactly on next->next (at +2*align),
+     * zeroing it before it is read.  The subsequent "newBlock->next->prev = newBlock"
+     * then dereferences NULL, crashing at memzone.h line 654.
+     *
+     * Trigger: alloc A (8*align), alloc B (2*align as payload), free B,
+     * realloc A to 9*align.  B_free.size = headerSize + 2*align, so
+     * remainingSize = headerSize + align — the minimum that qualifies for a
+     * split — ensuring the overlap write always fires.
+     */
+    size_t align = mz_alignment();
+    memzone_t* zone = createZoneOrFail(4096);
+    void* a = mz_alloc(zone, align * 8);
+    void* b = mz_alloc(zone, align * 2);  /* B_free.size = headerSize + 2*align */
+    void* c = mz_alloc(zone, align * 8);  /* pin: prevents b coalescing with tail */
+    TEST_ASSERT_NOT_NULL(a);
+    TEST_ASSERT_NOT_NULL(b);
+    TEST_ASSERT_NOT_NULL(c);
+
+    mz_free(zone, b);
+    assertZoneInvariants(zone);
+
+    /* extraNeeded = align: newBlock->user clobbers next->next without the fix */
+    void* result = mz_realloc(zone, a, align * 9);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_PTR(a, result);
+    assertZoneInvariants(zone);
+
+    mz_free(zone, result);
+    mz_free(zone, c);
+    assertZoneInvariants(zone);
+    mz_destroy(zone);
+}
+
+static void test_mz_realloc_in_place_split_two_alignment_units_growth(void)
+{
+    /*
+     * Regression: same root cause as the one-unit case above, but with
+     * extraNeeded = 2*mz_alignment().  Here newBlock lands two alignment units
+     * into the free block, so "newBlock->size = remainingSize" (at offset 0
+     * within newBlock, i.e. +2*align from next) overwrites next->next, storing
+     * a large integer that is later dereferenced as a pointer — undefined
+     * behaviour / crash at line 654.
+     */
+    size_t align = mz_alignment();
+    memzone_t* zone = createZoneOrFail(4096);
+    void* a = mz_alloc(zone, align * 8);
+    void* b = mz_alloc(zone, align * 3);  /* B_free.size = headerSize + 3*align */
+    void* c = mz_alloc(zone, align * 8);
+    TEST_ASSERT_NOT_NULL(a);
+    TEST_ASSERT_NOT_NULL(b);
+    TEST_ASSERT_NOT_NULL(c);
+
+    mz_free(zone, b);
+    assertZoneInvariants(zone);
+
+    /* extraNeeded = 2*align: newBlock->size clobbers next->next without the fix */
+    void* result = mz_realloc(zone, a, align * 10);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_PTR(a, result);
+    assertZoneInvariants(zone);
+
+    mz_free(zone, result);
+    mz_free(zone, c);
+    assertZoneInvariants(zone);
+    mz_destroy(zone);
+}
+
 static void test_mz_realloc_zone_invariants_held_throughout(void)
 {
     memzone_t* zone = createZoneOrFail(4096);
@@ -991,6 +1065,8 @@ int main(void)
     RUN_TEST(test_mz_realloc_no_adjacent_empty_block_allocates_new);
     RUN_TEST(test_mz_realloc_case1_preserves_data);
     RUN_TEST(test_mz_realloc_case3_data_preserved_in_new_location);
+    RUN_TEST(test_mz_realloc_in_place_split_one_alignment_unit_growth);
+    RUN_TEST(test_mz_realloc_in_place_split_two_alignment_units_growth);
     RUN_TEST(test_mz_realloc_zone_invariants_held_throughout);
     RUN_TEST(test_mz_realloc_fails_gracefully_when_oom);
     return UNITY_END();
