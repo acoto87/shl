@@ -63,6 +63,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -162,7 +163,7 @@ struct memzone_s
 #endif
 
 #define MZ__POINTER_OFFSET(t, p, o) ((t*)((uint8_t*)(p) + (o)))
-#define MZ__ALIGNOF(type) offsetof(struct { char c; type value; }, value)
+#define MZ__ALIGNOF(type) alignof(type)
 #define MZ__MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MZ__DEFAULT_ALIGNMENT MZ__MAX(MZ__ALIGNOF(memblock_t), MZ__MAX(MZ__ALIGNOF(void*), MZ__ALIGNOF(size_t)))
 #define MZ__IS_BLOCK_EMPTY(block) ((block)->user == NULL)
