@@ -9,9 +9,25 @@ static bool intEquals(const int x, const int y)
     return x == y;
 }
 
-static int32_t intCompare(const int x, const int y)
+static int32_t intCompare(const int x, const int y, void* userdata)
 {
+    (void)userdata;
     return x - y;
+}
+
+static int32_t intCompareDescending(const int x, const int y, void* userdata)
+{
+    (void)userdata;
+    return y - x;
+}
+
+/* userdata points to an int field offset within a struct; used to sort
+   flat int arrays by a chosen "column" index. Here we use it simply as
+   a multiplier (+1 / -1) to flip sort direction at runtime. */
+static int32_t intCompareWithDirection(const int x, const int y, void* userdata)
+{
+    int direction = *(int*)userdata; /* +1 = ascending, -1 = descending */
+    return direction * (x - y);
 }
 
 typedef struct
@@ -25,8 +41,9 @@ static bool entryEquals(const Entry* left, const Entry* right)
     return left->index == right->index && strcmp(left->name, right->name) == 0;
 }
 
-static int32_t entryCompare(const Entry* left, const Entry* right)
+static int32_t entryCompare(const Entry* left, const Entry* right, void* userdata)
 {
+    (void)userdata;
     if (left->index == right->index)
     {
         return strcmp(left->name, right->name);
@@ -139,7 +156,7 @@ void test_int_list_sort_orders_values_ascending(void)
     IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
 
     IntListAddRange(&list, 6, (int*)values);
-    IntListSort(&list, intCompare);
+    IntListSort(&list, intCompare, NULL);
 
     for (int i = 1; i < list.count; i++)
     {
@@ -226,16 +243,64 @@ void test_entry_list_integration_sorts_remaining_entries_after_mutations(void)
     EntryListRemove(&list, &(Entry){ .index = 4, .name = "d" });
 
     TEST_ASSERT_EQUAL_INT(4, list.count);
-    EntryListSort(&list, entryCompare);
+    EntryListSort(&list, entryCompare, NULL);
 
     for (int i = 1; i < list.count; i++)
     {
-        TEST_ASSERT_TRUE(entryCompare(list.items[i - 1], list.items[i]) <= 0);
+        TEST_ASSERT_TRUE(entryCompare(list.items[i - 1], list.items[i], NULL) <= 0);
     }
 
     TEST_ASSERT_EQUAL_INT(1, list.items[0]->index);
     TEST_ASSERT_EQUAL_INT(5, list.items[3]->index);
     EntryListFree(&list);
+}
+
+void test_int_list_sort_descending_via_compare_fn(void)
+{
+    const int values[] = { 3, 1, 4, 1, 5, 9, 2, 6 };
+    IntList list;
+    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    IntListAddRange(&list, 8, (int*)values);
+    IntListSort(&list, intCompareDescending, NULL);
+
+    for (int i = 1; i < list.count; i++)
+    {
+        TEST_ASSERT_TRUE(list.items[i - 1] >= list.items[i]);
+    }
+
+    IntListFree(&list);
+}
+
+void test_int_list_sort_direction_controlled_by_userdata(void)
+{
+    const int values[] = { 9, 1, 5, 3, 7, 2 };
+    IntList asc, desc;
+    IntListInit(&asc,  (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&desc, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+
+    IntListAddRange(&asc,  6, (int*)values);
+    IntListAddRange(&desc, 6, (int*)values);
+
+    int ascending  =  1;
+    int descending = -1;
+    IntListSort(&asc,  intCompareWithDirection, &ascending);
+    IntListSort(&desc, intCompareWithDirection, &descending);
+
+    for (int i = 1; i < asc.count; i++)
+    {
+        TEST_ASSERT_TRUE(asc.items[i - 1]  <= asc.items[i]);
+        TEST_ASSERT_TRUE(desc.items[i - 1] >= desc.items[i]);
+    }
+
+    /* The two lists should be mirror images of each other. */
+    for (int i = 0; i < asc.count; i++)
+    {
+        TEST_ASSERT_EQUAL_INT(asc.items[i], desc.items[asc.count - 1 - i]);
+    }
+
+    IntListFree(&asc);
+    IntListFree(&desc);
 }
 
 void setUp(void)
@@ -254,6 +319,8 @@ int main(void)
     RUN_TEST(test_int_list_insert_remove_and_contains_work_together);
     RUN_TEST(test_int_list_range_operations_copy_and_reverse);
     RUN_TEST(test_int_list_sort_orders_values_ascending);
+    RUN_TEST(test_int_list_sort_descending_via_compare_fn);
+    RUN_TEST(test_int_list_sort_direction_controlled_by_userdata);
     RUN_TEST(test_int_list_stress_insert_range_and_remove_range);
     RUN_TEST(test_entry_list_set_releases_replaced_item);
     RUN_TEST(test_entry_list_remove_range_and_clear_call_free_function);
