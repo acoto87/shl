@@ -59,6 +59,10 @@
 #ifndef SHL_MZ_H
 #define SHL_MZ_H
 
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -118,9 +122,6 @@ float mz_fragmentation(const memzone_t* zone);
 #ifdef SHL_MZ_IMPLEMENTATION
 
 #include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <stdalign.h>
 #include <string.h>
