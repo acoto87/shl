@@ -57,10 +57,40 @@ static const TestTarget* find_test_target(const char* name)
     return NULL;
 }
 
+typedef struct
+{
+    const char* source;
+    const char* output;
+} BenchTarget;
+
+static const BenchTarget BenchTargets[] =
+{
+    { "benchmarks/list_bench.c",    "list_bench"    },
+    { "benchmarks/memzone_bench.c", "memzone_bench" },
+};
+
+static const BenchTarget* find_bench_target(const char* name)
+{
+    if (name == NULL || strcmp(name, "all") == 0)
+    {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < NOB_ARRAY_LEN(BenchTargets); ++i)
+    {
+        if (strcmp(BenchTargets[i].output, name) == 0)
+        {
+            return &BenchTargets[i];
+        }
+    }
+
+    return NULL;
+}
+
 static void print_usage(const char* program)
 {
-    nob_log(NOB_INFO, "Usage: %s [build|test|asan|valgrind] [all|test_name]", program);
-    nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test", program, program, program);
+    nob_log(NOB_INFO, "Usage: %s [build|test|asan|valgrind|bench] [all|name]", program);
+    nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test, %s bench list_bench", program, program, program, program);
 }
 
 static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
@@ -147,6 +177,52 @@ static bool run_tests(const char* out_dir, BuildMode mode, const TestTarget* sel
     return true;
 }
 
+static bool build_benches(const char* out_dir, const BenchTarget* selected_target)
+{
+    if (!nob_mkdir_if_not_exists("build")) return false;
+    if (!nob_mkdir_if_not_exists(out_dir)) return false;
+
+    for (size_t i = 0; i < NOB_ARRAY_LEN(BenchTargets); ++i)
+    {
+        Nob_Cmd cmd = {0};
+        const BenchTarget target = BenchTargets[i];
+        const char* output_path = nob_temp_sprintf("%s/%s", out_dir, target.output);
+
+        if (selected_target != NULL && strcmp(target.output, selected_target->output) != 0)
+            continue;
+
+        nob_cc(&cmd);
+        nob_cmd_append(&cmd, "-std=gnu11", "-O2", "-Wall", "-Wextra", "-I.", "-Ibenchmarks");
+        nob_cc_output(&cmd, output_path);
+        nob_cmd_append(&cmd, target.source, "-lm");
+
+        if (!nob_cmd_run_sync(cmd))
+            return false;
+    }
+
+    return true;
+}
+
+static bool run_benches(const char* out_dir, const BenchTarget* selected_target)
+{
+    for (size_t i = 0; i < NOB_ARRAY_LEN(BenchTargets); ++i)
+    {
+        Nob_Cmd cmd = {0};
+        const BenchTarget target = BenchTargets[i];
+        const char* output_path = nob_temp_sprintf("%s/%s", out_dir, target.output);
+
+        if (selected_target != NULL && strcmp(target.output, selected_target->output) != 0)
+            continue;
+
+        nob_cmd_append(&cmd, output_path);
+
+        if (!nob_cmd_run_sync(cmd))
+            return false;
+    }
+
+    return true;
+}
+
 int main(int argc, char** argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
@@ -163,6 +239,32 @@ int main(int argc, char** argv)
         nob_log(NOB_ERROR, "Too many arguments.");
         print_usage(argv[0]);
         return 1;
+    }
+
+    if (strcmp(command, "bench") == 0)
+    {
+        const char* bench_name = argc > 2 ? argv[2] : NULL;
+        const char* bench_out_dir = "build/bench";
+        const BenchTarget* selected_bench = NULL;
+
+        if (bench_name != NULL && strcmp(bench_name, "all") != 0)
+        {
+            selected_bench = find_bench_target(bench_name);
+            if (selected_bench == NULL)
+            {
+                nob_log(NOB_ERROR, "Unknown benchmark `%s`.", bench_name);
+                nob_log(NOB_INFO, "Available benchmarks:");
+                for (size_t i = 0; i < NOB_ARRAY_LEN(BenchTargets); ++i)
+                    nob_log(NOB_INFO, "  %s", BenchTargets[i].output);
+                return 1;
+            }
+        }
+
+        if (!build_benches(bench_out_dir, selected_bench))
+            return 1;
+        if (!run_benches(bench_out_dir, selected_bench))
+            return 1;
+        return 0;
     }
 
     if (strcmp(command, "build") == 0)

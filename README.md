@@ -24,14 +24,43 @@ Any tips/suggestions are welcome.
 
 ## Building and running tests
 
-The test suite is built with [nob](https://github.com/tsoding/nob.h) and uses the Unity C test framework.
+The test suite is built with [nob](https://github.com/tsoding/nob.h) and uses the [Unity](https://github.com/ThrowTheSwitch/Unity) C test framework. Tests live in `tests/` and cover every public API of each header.
 
 ```sh
 cc -std=c99 -Wall -Wextra nob.c -o nob
+
+# Run all tests
 ./nob test
 ./nob test all
+
+# Run a single test suite
 ./nob test wstr_test
+
+# Run under AddressSanitizer
 ./nob asan
 ./nob asan array_test
+
+# Run under Valgrind (Linux only)
 ./nob valgrind
 ```
+
+## Benchmarks
+
+Microbenchmarks live in `benchmarks/` and use [ubench.h](https://github.com/sheredom/ubench.h).
+Each suite covers all major API operations in isolation, integrated scenarios, and — where applicable — direct comparisons against the stdlib equivalents (`malloc` / `realloc` / `free`).
+
+| Suite | Source | What it covers |
+|---|---|---|
+| `list_bench` | `benchmarks/list_bench.c` | All `list.h` operations: add, insert, remove, search, sort |
+| `memzone_bench` | `benchmarks/memzone_bench.c` | All `memzone.h` operations vs `malloc` / `realloc` / `free` |
+
+```sh
+# Build and run all benchmarks
+./nob bench
+
+# Build and run a single benchmark suite
+./nob bench list_bench
+./nob bench memzone_bench
+```
+
+> **Note on batched benchmarks:** O(1) operations (e.g. a single alloc+free or a direct array access) are too short to measure individually on Windows without hitting timer-resolution noise. Those benchmarks perform N = 128 operations per timed sample and report the aggregate mean; divide by 128 for the per-operation cost.
