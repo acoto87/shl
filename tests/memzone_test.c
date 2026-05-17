@@ -1024,6 +1024,88 @@ static void test_mz_realloc_fails_gracefully_when_oom(void)
     mz_destroy(zone);
 }
 
+/* =========================================================================
+   Rover advancement fix (staged change)
+   ========================================================================= */
+
+static void test_mz_alloc_rover_skips_allocated_block_when_exact_fit(void)
+{
+    /*
+     * Regression: when mz_allocAligned consumes an entire free block (no tail
+     * remainder qualifies for a split), the rover used to be set to rover->next,
+     * which could be an allocated block — causing mz_validate to fail on the
+     * next call.
+     *
+     * Layout after three allocs: A(alloc) | B(alloc) | C(alloc) | tail(free)
+     * 1. free B      → rover = B (free); B.next = C (allocated)
+     * 2. alloc D(64) → exact fit into B's slot; no tail split created
+     *    Before fix:  rover = C (allocated) → mz_validate fails
+     *    After fix:   rover advances past C → rover = tail (free)
+     */
+    memzone_t* zone = createZoneOrFail(4096);
+    void* a = mz_alloc(zone, 64);
+    void* b = mz_alloc(zone, 64);
+    void* c = mz_alloc(zone, 64);
+    TEST_ASSERT_NOT_NULL(a);
+    TEST_ASSERT_NOT_NULL(b);
+    TEST_ASSERT_NOT_NULL(c);
+
+    mz_free(zone, b);
+    assertZoneInvariants(zone);
+
+    /* D re-allocates exactly into B's slot (same aligned size → no remainder block) */
+    void* d = mz_alloc(zone, 64);
+    TEST_ASSERT_NOT_NULL(d);
+    TEST_ASSERT_EQUAL_PTR(b, d);  /* must land back in B's old slot */
+
+    /* Critical: rover must not point to C (allocated) — zone must remain valid */
+    assertZoneInvariants(zone);
+
+    /* Subsequent allocation must still succeed from the tail free block */
+    void* e = mz_alloc(zone, 64);
+    TEST_ASSERT_NOT_NULL(e);
+    assertZoneInvariants(zone);
+
+    mz_free(zone, a);
+    mz_free(zone, c);
+    mz_free(zone, d);
+    mz_free(zone, e);
+    assertZoneInvariants(zone);
+    mz_destroy(zone);
+}
+
+static void test_mz_validate_reports_rover_pointing_to_allocated_block(void)
+{
+    /*
+     * The new mz_validate check rejects a rover that points to an allocated
+     * block (user != NULL) that is not the sentinel blockList.
+     *
+     * After three allocs the block list is:
+     *   blockList(A) → newBlock1(B) → newBlock2(C) → tail(free) → blockList
+     * Manually setting rover = newBlock1 (B's block, allocated) must be caught.
+     */
+    memzone_t* zone = createZoneOrFail(4096);
+    ReportCapture capture = {0};
+    void* a = mz_alloc(zone, 64);
+    void* b = mz_alloc(zone, 64);
+    void* c = mz_alloc(zone, 64);
+    (void)a;
+    (void)b;
+    (void)c;
+    mz_setReporter(zone, captureReport, &capture);
+
+    /* Corrupt the rover to point to b's block (allocated, not the sentinel) */
+    zone->rover = zone->blockList.next;  /* newBlock1 = b's block; user != NULL */
+    TEST_ASSERT_FALSE(MZ__IS_BLOCK_EMPTY(zone->rover));
+
+    TEST_ASSERT_FALSE(mz_validate(zone));
+    TEST_ASSERT_EQUAL_INT32(1, capture.count);
+    TEST_ASSERT_EQUAL_INT32(MZ_REPORT_VALIDATION_FAILURE, capture.lastReport);
+    TEST_ASSERT_NOT_NULL(capture.lastMessage);
+
+    mz_destroy(zone);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1069,5 +1151,7 @@ int main(void)
     RUN_TEST(test_mz_realloc_in_place_split_two_alignment_units_growth);
     RUN_TEST(test_mz_realloc_zone_invariants_held_throughout);
     RUN_TEST(test_mz_realloc_fails_gracefully_when_oom);
+    RUN_TEST(test_mz_alloc_rover_skips_allocated_block_when_exact_fit);
+    RUN_TEST(test_mz_validate_reports_rover_pointing_to_allocated_block);
     return UNITY_END();
 }
