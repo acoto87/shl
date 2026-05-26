@@ -1074,6 +1074,77 @@ static void test_mz_alloc_rover_skips_allocated_block_when_exact_fit(void)
     mz_destroy(zone);
 }
 
+static void test_mz_realloc_in_place_full_consume_rover_skips_allocated_block(void)
+{
+    /*
+     * Regression: when mz_realloc Case 2 fully consumes the adjacent free block
+     * (remainingSize == 0, which is < headerSize + alignment and goes to the
+     * else branch), it used to set zone->rover = block->next unconditionally.
+     * block->next (the old next->next) can be an allocated block, which then
+     * causes mz_validate to report "rover points to an allocated block".
+     *
+     * Trigger layout:
+     *   blockList → [A: alloc, size=allocSize] → [B: free, size=bBlockSize]
+     *               → [C: alloc, size=allocSize] → [tail: free] → blockList
+     *   zone->rover = B
+     *
+     * Realloc A to allocSize + bBlockSize exactly consumes B with no remainder:
+     *   extraNeeded = bBlockSize
+     *   remainingSize = bBlockSize - bBlockSize = 0 < (headerSize + alignment)
+     *   → else branch → zone->rover must not be set to C (allocated).
+     *
+     * The fix advances rover past any allocated blocks to the next free block,
+     * matching the same logic used in mz_allocAligned.
+     *
+     * This reproduces the crash observed in war1-c where a series of in-place
+     * doubling reallocations (xmi2mid work buffer) exhausted the adjacent free
+     * block exactly, leaving rover pointing at the next allocated header buffer.
+     */
+    memzone_t* zone = createZoneOrFail(4096);
+
+    /* Compute one block's total size (header + aligned payload) from the
+       change in usedSize after the first allocation. */
+    size_t usedAtInit = mz_usedSize(zone);
+    size_t allocSize  = mz_alignment() * 8;  /* payload per block */
+
+    void* a = mz_alloc(zone, allocSize);
+    size_t bBlockSize = mz_usedSize(zone) - usedAtInit;  /* headerSize + allocSize */
+
+    void* b = mz_alloc(zone, allocSize);
+    void* c = mz_alloc(zone, allocSize);
+    TEST_ASSERT_NOT_NULL(a);
+    TEST_ASSERT_NOT_NULL(b);
+    TEST_ASSERT_NOT_NULL(c);
+    assertZoneInvariants(zone);
+
+    /* Free B so layout is: [A: alloc] [B: free] [C: alloc] [tail: free].
+       Rover lands on B (no adjacent free neighbours to merge with). */
+    mz_free(zone, b);
+    TEST_ASSERT_EQUAL_PTR(zone->rover, zone->blockList.next);  /* rover == B's block */
+    assertZoneInvariants(zone);
+
+    /* Realloc A to exactly consume B's whole block (extraNeeded == B.size,
+       remainingSize == 0 → else branch in Case 2). */
+    void* a2 = mz_realloc(zone, a, allocSize + bBlockSize);
+
+    /* Must still be an in-place expansion — pointer unchanged. */
+    TEST_ASSERT_EQUAL_PTR(a, a2);
+
+    /* Critical: rover must not point to C (allocated); zone must be valid. */
+    assertZoneInvariants(zone);
+
+    /* A subsequent allocation must succeed (rover is usable). */
+    void* d = mz_alloc(zone, allocSize);
+    TEST_ASSERT_NOT_NULL(d);
+    assertZoneInvariants(zone);
+
+    mz_free(zone, a2);
+    mz_free(zone, c);
+    mz_free(zone, d);
+    assertZoneInvariants(zone);
+    mz_destroy(zone);
+}
+
 static void test_mz_validate_reports_rover_pointing_to_allocated_block(void)
 {
     /*
@@ -1152,6 +1223,7 @@ int main(void)
     RUN_TEST(test_mz_realloc_zone_invariants_held_throughout);
     RUN_TEST(test_mz_realloc_fails_gracefully_when_oom);
     RUN_TEST(test_mz_alloc_rover_skips_allocated_block_when_exact_fit);
+    RUN_TEST(test_mz_realloc_in_place_full_consume_rover_skips_allocated_block);
     RUN_TEST(test_mz_validate_reports_rover_pointing_to_allocated_block);
     return UNITY_END();
 }
