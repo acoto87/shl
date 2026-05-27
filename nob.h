@@ -353,8 +353,10 @@ NOBDEF void nob_dir_entry_close(Nob_Dir_Entry dir);
                 (da)->capacity = NOB_DA_INIT_CAP;                                          \
             }                                                                              \
             while ((expected_capacity) > (da)->capacity) {                                 \
+                NOB_ASSERT((da)->capacity <= (size_t)-1 / 2 && "Capacity overflow");       \
                 (da)->capacity *= 2;                                                       \
             }                                                                              \
+            NOB_ASSERT((da)->capacity <= (size_t)-1 / sizeof(*(da)->items) && "Allocation size overflow"); \
             (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
             NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
         }                                                                                  \
