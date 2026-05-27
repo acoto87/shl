@@ -24,7 +24,7 @@
 #define SHL_MEMORY_BUFFER_IMPLEMENTATION
 #include "../memory_buffer.h"
 
-#define SHL_WAV_IMPLEMENTATION
+#define MINIWAVE_IMPLEMENTATION
 #include "../wav.h"
 
 #define SHL_FLIC_IMPLEMENTATION
@@ -52,8 +52,7 @@ bool helper_mb_write_byte(memory_buffer_t* buf, uint8_t value);
 bool helper_mb_read_byte(memory_buffer_t* buf, uint8_t* out);
 bool helper_mb_seek(memory_buffer_t* buf, uint32_t pos);
 
-bool helper_wav_write_samples(wav_file_t* wf, const wav_sample_t* samples,
-                              long count);
+bool helper_wav_write_to_file(mw_audio_buffer* audio, const char* path);
 
 bool helper_flic_open_missing(void);
 
@@ -169,38 +168,41 @@ static void test_multi_tu_mb_multiple_writes(void)
 
 /* =========================================================================
    wav multi-TU tests
-   wav_file_t is a complete type here (after _IMPLEMENTATION).  The struct
-   is allocated on the stack in this TU and a pointer is passed to the
-   helper TU for the write call, exercising the cross-TU boundary.
+   mw_audio_buffer is a complete type in the public header, so both TUs
+   can stack-allocate it.  The helper TU calls mw_write_file, exercising
+   a cross-TU call into the implementation compiled in this TU.
    ========================================================================= */
 
-static void test_multi_tu_wav_init_write_flush(void)
+static void test_multi_tu_wav_write_and_read(void)
 {
     const char* path = "multi_tu_wav_test.wav";
-    wav_file_t wf;
-    TEST_ASSERT_TRUE(wav_init(&wf, 44100, path));
+    uint8_t samples[8] = { 128, 200, 64, 100, 180, 90, 140, 110 };
+    mw_audio_buffer audio = { 1, 22050, 8, 8, samples };
 
     /* Write performed in helper TU. */
-    wav_sample_t samples[8] = { 0, 1000, 2000, -1000, -2000, 500, -500, 0 };
-    TEST_ASSERT_TRUE(helper_wav_write_samples(&wf, samples, 8));
+    TEST_ASSERT_TRUE(helper_wav_write_to_file(&audio, path));
 
-    TEST_ASSERT_TRUE(wav_flush(&wf, true));
+    /* Read back and verify in the implementation TU. */
+    mw_audio_buffer result;
+    TEST_ASSERT_EQUAL_INT(1, mw_read_file(path, &result));
+    TEST_ASSERT_EQUAL_UINT32(1,     result.channels);
+    TEST_ASSERT_EQUAL_UINT32(22050, result.sample_rate);
+    TEST_ASSERT_EQUAL_UINT32(8,     result.bits_per_sample);
+    TEST_ASSERT_EQUAL_UINT32(8,     result.data_length);
+    TEST_ASSERT_EQUAL_MEMORY(samples, result.data, 8);
+    mw_free_buffer(&result);
     remove(path);
 }
 
-static void test_multi_tu_wav_stereo_flag(void)
+static void test_multi_tu_wav_resample_in_test_tu(void)
 {
-    const char* path = "multi_tu_wav_stereo_test.wav";
-    wav_file_t wf;
-    TEST_ASSERT_TRUE(wav_init(&wf, 22050, path));
-    wav_stereo(&wf, true);
-    TEST_ASSERT_EQUAL_INT(0, (int)wav_sampleCount(&wf));
-
-    wav_sample_t stereo[4] = { 100, -100, 200, -200 };
-    TEST_ASSERT_TRUE(helper_wav_write_samples(&wf, stereo, 4));
-
-    TEST_ASSERT_TRUE(wav_flush(&wf, true));
-    remove(path);
+    /* Resample exercised entirely in the implementation TU. */
+    uint8_t samples[8] = { 128, 200, 64, 100, 180, 90, 140, 110 };
+    mw_audio_buffer src = { 1, 22050, 8, 8, samples };
+    mw_audio_buffer dst;
+    TEST_ASSERT_EQUAL_INT(1, mw_resample_pcm(&src, &dst, 44100));
+    TEST_ASSERT_EQUAL_UINT32(44100, dst.sample_rate);
+    mw_free_buffer(&dst);
 }
 
 /* =========================================================================
@@ -245,8 +247,8 @@ int main(void)
     RUN_TEST(test_multi_tu_mb_multiple_writes);
 
     /* wav */
-    RUN_TEST(test_multi_tu_wav_init_write_flush);
-    RUN_TEST(test_multi_tu_wav_stereo_flag);
+    RUN_TEST(test_multi_tu_wav_write_and_read);
+    RUN_TEST(test_multi_tu_wav_resample_in_test_tu);
 
     /* flic */
     RUN_TEST(test_multi_tu_flic_open_missing);

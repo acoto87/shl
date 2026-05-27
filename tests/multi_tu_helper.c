@@ -95,15 +95,14 @@ bool helper_mb_seek(memory_buffer_t* buf, uint32_t pos)
 
 /* -------------------------------------------------------------------------
    wav helpers
-   wav_file_t is an incomplete type in this TU (its struct body is inside
-   #ifdef SHL_WAV_IMPLEMENTATION).  The implementation TU allocates the
-   object on the stack and passes a pointer here.
+   mw_audio_buffer is a complete public type, so it can be used here without
+   MINIWAVE_IMPLEMENTATION.  This helper calls mw_write_file, which resolves
+   to the implementation compiled in multi_tu_test.c.
    ------------------------------------------------------------------------- */
 
-bool helper_wav_write_samples(wav_file_t* wf, const wav_sample_t* samples,
-                              long count)
+bool helper_wav_write_to_file(mw_audio_buffer* audio, const char* path)
 {
-    return wav_write(wf, samples, count, 1);
+    return mw_write_file(path, audio) == 1;
 }
 
 /* -------------------------------------------------------------------------
