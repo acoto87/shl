@@ -12,6 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* alloc.h is self-contained; shl_internal.h re-exports it so that every
+   collection header that includes shl_internal.h automatically has access
+   to shl_allocator_t, shl_heap_alloc(), and (when memzone.h precedes this
+   header) shl_zone_alloc(). */
+#include "alloc.h"
+
 #ifndef SHL_MALLOC
 #define SHL_MALLOC(sz) malloc(sz)
 #endif
@@ -45,6 +51,13 @@ static inline void shl__resizeArray(void** items, int32_t* capacity, int32_t min
     *items = SHL_REALLOC(*items, (size_t)(*capacity) * itemSize);
 }
 
+// Like shl__resizeArray but routes through a per-instance shl_allocator_t.
+static inline void shl__resizeArrayWith(void** items, int32_t* capacity, int32_t minSize, size_t itemSize, shl_allocator_t* alloc)
+{
+    *capacity = shl__grownCapacity(*capacity, minSize);
+    *items = alloc->reallocFn(alloc->ctx, *items, (size_t)(*capacity) * itemSize);
+}
+
 static inline void shl__resizeCircularArray(void** items, int32_t* capacity, int32_t* head, int32_t* tail, int32_t count, size_t itemSize)
 {
     int32_t oldCapacity = *capacity;
@@ -73,6 +86,39 @@ static inline void shl__resizeCircularArray(void** items, int32_t* capacity, int
     *head = 0;
     *tail = count;
     SHL_FREE(*items);
+    *items = newItems;
+}
+
+/* Like shl__resizeCircularArray but routes through a per-instance shl_allocator_t. */
+static inline void shl__resizeCircularArrayWith(void** items, int32_t* capacity, int32_t* head, int32_t* tail, int32_t count, size_t itemSize, shl_allocator_t* alloc)
+{
+    int32_t oldCapacity = *capacity;
+    unsigned char* oldItems = (unsigned char*)*items;
+    unsigned char* newItems;
+
+    *capacity = shl__grownCapacity(*capacity, *capacity + 1);
+    newItems = (unsigned char*)alloc->mallocFn(alloc->ctx, (size_t)(*capacity) * itemSize);
+    memset(newItems, 0, (size_t)(*capacity) * itemSize);
+
+    if (count > 0)
+    {
+        if (*head >= *tail)
+        {
+            size_t firstCopySize = (size_t)(oldCapacity - *head) * itemSize;
+            size_t secondCopySize = (size_t)((*head + count) % oldCapacity) * itemSize;
+
+            memcpy(newItems, oldItems + (size_t)(*head) * itemSize, firstCopySize);
+            memcpy(newItems + firstCopySize, oldItems, secondCopySize);
+        }
+        else
+        {
+            memcpy(newItems, oldItems + (size_t)(*head) * itemSize, (size_t)count * itemSize);
+        }
+    }
+
+    *head = 0;
+    *tail = count;
+    alloc->freeFn(alloc->ctx, *items);
     *items = newItems;
 }
 

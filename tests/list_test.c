@@ -1,6 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* memzone.h must be included before list.h so that the #ifdef SHL_MZ_H
+   bridge in shl_internal.h is compiled in. */
+#define SHL_MZ_IMPLEMENTATION
+#include "../memzone.h"
+
 #include "../list.h"
 #include "test_common.h"
 
@@ -79,13 +84,31 @@ static Entry* makeEntry(int index, const char* name)
     return entry;
 }
 
-void test_int_list_get_returns_default_when_out_of_range(void)
+void test_shl_heap_alloc_returns_valid_allocator(void)
+{
+    shl_allocator_t* alloc = shl_heap_alloc();
+    TEST_ASSERT_NOT_NULL(alloc);
+    TEST_ASSERT_NOT_NULL(alloc->mallocFn);
+    TEST_ASSERT_NOT_NULL(alloc->reallocFn);
+    TEST_ASSERT_NOT_NULL(alloc->freeFn);
+
+    /* Returns the same stable pointer on every call. */
+    TEST_ASSERT_EQUAL_PTR(alloc, shl_heap_alloc());
+
+    IntList list;
+    IntListInit(&list, alloc);
+    IntListAdd(&list, 42);
+    TEST_ASSERT_EQUAL_INT(42, IntListGet(&list, 0));
+    IntListFree(&list);
+}
+
+void test_int_list_get_returns_zero_when_out_of_range(void)
 {
     IntList list;
-    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&list, shl_heap_alloc());
 
-    TEST_ASSERT_EQUAL_INT(-1, IntListGet(&list, 0));
-    TEST_ASSERT_EQUAL_INT(-1, IntListGet(&list, 42));
+    TEST_ASSERT_EQUAL_INT(0, IntListGet(&list, 0));
+    TEST_ASSERT_EQUAL_INT(0, IntListGet(&list, 42));
 
     IntListFree(&list);
 }
@@ -93,7 +116,7 @@ void test_int_list_get_returns_default_when_out_of_range(void)
 void test_int_list_insert_remove_and_contains_work_together(void)
 {
     IntList list;
-    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&list, shl_heap_alloc());
 
     IntListAdd(&list, 2);
     IntListAdd(&list, 4);
@@ -105,9 +128,9 @@ void test_int_list_insert_remove_and_contains_work_together(void)
     TEST_ASSERT_EQUAL_INT(2, IntListGet(&list, 1));
     TEST_ASSERT_EQUAL_INT(3, IntListGet(&list, 2));
     TEST_ASSERT_EQUAL_INT(4, IntListGet(&list, 3));
-    TEST_ASSERT_TRUE(IntListContains(&list, 3));
+    TEST_ASSERT_TRUE(IntListContains(&list, 3, intEquals));
 
-    IntListRemove(&list, 2);
+    IntListRemove(&list, 2, intEquals);
     IntListRemoveAt(&list, 0);
 
     TEST_ASSERT_EQUAL_INT(2, list.count);
@@ -122,7 +145,7 @@ void test_int_list_range_operations_copy_and_reverse(void)
     const int range[] = { 9, 8, 7 };
     int copy[10] = {0};
     IntList list;
-    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&list, shl_heap_alloc());
 
     IntListAddRange(&list, 5, (int*)values);
     IntListInsertRange(&list, 2, 3, (int*)range);
@@ -153,7 +176,7 @@ void test_int_list_sort_orders_values_ascending(void)
 {
     const int values[] = { 9, 1, 5, 3, 7, 2 };
     IntList list;
-    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&list, shl_heap_alloc());
 
     IntListAddRange(&list, 6, (int*)values);
     IntListSort(&list, intCompare, NULL);
@@ -169,7 +192,7 @@ void test_int_list_sort_orders_values_ascending(void)
 void test_int_list_stress_insert_range_and_remove_range(void)
 {
     IntList list;
-    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&list, shl_heap_alloc());
 
     for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
     {
@@ -196,70 +219,11 @@ void test_int_list_stress_insert_range_and_remove_range(void)
     IntListFree(&list);
 }
 
-void test_entry_list_set_releases_replaced_item(void)
-{
-    EntryList list;
-    EntryListInit(&list, (EntryListOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
-
-    EntryListAdd(&list, makeEntry(1, "one"));
-    EntryListAdd(&list, makeEntry(2, "two"));
-    EntryListSet(&list, 0, makeEntry(3, "three"));
-
-    TEST_ASSERT_EQUAL_INT(1, g_entryFreeCount);
-    TEST_ASSERT_EQUAL_INT(3, list.items[0]->index);
-    EntryListFree(&list);
-}
-
-void test_entry_list_remove_range_and_clear_call_free_function(void)
-{
-    EntryList list;
-    EntryListInit(&list, (EntryListOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
-
-    for (int i = 0; i < 10; i++)
-    {
-        EntryListAdd(&list, makeEntry(i, "entry"));
-    }
-
-    EntryListRemoveAtRange(&list, 3, 4);
-    TEST_ASSERT_EQUAL_INT(4, g_entryFreeCount);
-    TEST_ASSERT_EQUAL_INT(6, list.count);
-
-    EntryListClear(&list);
-    TEST_ASSERT_EQUAL_INT(10, g_entryFreeCount);
-    TEST_ASSERT_EQUAL_INT(0, list.count);
-    EntryListFree(&list);
-}
-
-void test_entry_list_integration_sorts_remaining_entries_after_mutations(void)
-{
-    EntryList list;
-    EntryListInit(&list, (EntryListOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = entryFree });
-
-    EntryListAdd(&list, makeEntry(5, "e"));
-    EntryListAdd(&list, makeEntry(2, "b"));
-    EntryListInsert(&list, 1, makeEntry(4, "d"));
-    EntryListInsert(&list, 0, makeEntry(1, "a"));
-    EntryListAdd(&list, makeEntry(3, "c"));
-    EntryListRemove(&list, &(Entry){ .index = 4, .name = "d" });
-
-    TEST_ASSERT_EQUAL_INT(4, list.count);
-    EntryListSort(&list, entryCompare, NULL);
-
-    for (int i = 1; i < list.count; i++)
-    {
-        TEST_ASSERT_TRUE(entryCompare(list.items[i - 1], list.items[i], NULL) <= 0);
-    }
-
-    TEST_ASSERT_EQUAL_INT(1, list.items[0]->index);
-    TEST_ASSERT_EQUAL_INT(5, list.items[3]->index);
-    EntryListFree(&list);
-}
-
 void test_int_list_sort_descending_via_compare_fn(void)
 {
     const int values[] = { 3, 1, 4, 1, 5, 9, 2, 6 };
     IntList list;
-    IntListInit(&list, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&list, shl_heap_alloc());
 
     IntListAddRange(&list, 8, (int*)values);
     IntListSort(&list, intCompareDescending, NULL);
@@ -276,8 +240,8 @@ void test_int_list_sort_direction_controlled_by_userdata(void)
 {
     const int values[] = { 9, 1, 5, 3, 7, 2 };
     IntList asc, desc;
-    IntListInit(&asc,  (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
-    IntListInit(&desc, (IntListOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntListInit(&asc,  shl_heap_alloc());
+    IntListInit(&desc, shl_heap_alloc());
 
     IntListAddRange(&asc,  6, (int*)values);
     IntListAddRange(&desc, 6, (int*)values);
@@ -303,6 +267,154 @@ void test_int_list_sort_direction_controlled_by_userdata(void)
     IntListFree(&desc);
 }
 
+/* Set replaces the item at the given index.  The caller is responsible for
+   freeing the old item — the list does not manage item lifecycle. */
+void test_entry_list_set_replaces_item_at_index(void)
+{
+    EntryList list;
+    EntryListInit(&list, shl_heap_alloc());
+
+    Entry* original = makeEntry(1, "one");
+    EntryListAdd(&list, original);
+    EntryListAdd(&list, makeEntry(2, "two"));
+
+    EntryListSet(&list, 0, makeEntry(3, "three"));
+
+    TEST_ASSERT_EQUAL_INT(2, list.count);
+    TEST_ASSERT_EQUAL_INT(3, list.items[0]->index);
+
+    /* Caller frees the item that was replaced and all items still in the list. */
+    trackedEntryFree(original);
+    for (int i = 0; i < list.count; i++)
+        trackedEntryFree(list.items[i]);
+
+    EntryListFree(&list);
+    TEST_ASSERT_EQUAL_INT(3, g_entryFreeCount);
+}
+
+/* RemoveAtRange and Clear update count.  The caller frees items before
+   removing them; the list itself never calls item destructors. */
+void test_entry_list_remove_range_and_clear_update_count(void)
+{
+    EntryList list;
+    EntryListInit(&list, shl_heap_alloc());
+
+    for (int i = 0; i < 10; i++)
+        EntryListAdd(&list, makeEntry(i, "entry"));
+
+    /* Caller frees items [3..6] before removing the range. */
+    for (int i = 3; i < 7; i++)
+        trackedEntryFree(list.items[i]);
+
+    EntryListRemoveAtRange(&list, 3, 4);
+    TEST_ASSERT_EQUAL_INT(4, g_entryFreeCount);
+    TEST_ASSERT_EQUAL_INT(6, list.count);
+
+    /* Caller frees remaining items before clearing. */
+    for (int i = 0; i < list.count; i++)
+        trackedEntryFree(list.items[i]);
+
+    EntryListClear(&list);
+    TEST_ASSERT_EQUAL_INT(10, g_entryFreeCount);
+    TEST_ASSERT_EQUAL_INT(0, list.count);
+    EntryListFree(&list);
+}
+
+void test_entry_list_integration_sorts_remaining_entries_after_mutations(void)
+{
+    EntryList list;
+    EntryListInit(&list, shl_heap_alloc());
+
+    EntryListAdd(&list, makeEntry(5, "e"));
+    EntryListAdd(&list, makeEntry(2, "b"));
+    EntryListInsert(&list, 1, makeEntry(4, "d"));
+    EntryListInsert(&list, 0, makeEntry(1, "a"));
+    EntryListAdd(&list, makeEntry(3, "c"));
+
+    /* Caller locates, frees, then removes the item. */
+    Entry needle = { .index = 4, .name = "d" };
+    int32_t idx = EntryListIndexOf(&list, &needle, entryEquals);
+    TEST_ASSERT_TRUE(idx >= 0);
+    entryFree(list.items[idx]);
+    EntryListRemoveAt(&list, idx);
+
+    TEST_ASSERT_EQUAL_INT(4, list.count);
+    EntryListSort(&list, entryCompare, NULL);
+
+    for (int i = 1; i < list.count; i++)
+    {
+        TEST_ASSERT_TRUE(entryCompare(list.items[i - 1], list.items[i], NULL) <= 0);
+    }
+
+    TEST_ASSERT_EQUAL_INT(1, list.items[0]->index);
+    TEST_ASSERT_EQUAL_INT(5, list.items[3]->index);
+
+    /* Caller frees all remaining items before Free. */
+    for (int i = 0; i < list.count; i++)
+        entryFree(list.items[i]);
+    EntryListFree(&list);
+}
+
+/* InitFixed binds a caller-owned buffer; alloc is NULL (no heap involvement).
+   Items beyond capacity are silently dropped.  Free is a safe no-op. */
+void test_int_list_init_fixed_uses_stack_buffer(void)
+{
+    int buffer[4];
+    IntList list;
+    IntListInitFixed(&list, buffer, 4);
+
+    TEST_ASSERT_NULL(list.alloc);
+    TEST_ASSERT_EQUAL_INT(4, list.capacity);
+
+    IntListAdd(&list, 10);
+    IntListAdd(&list, 20);
+    IntListAdd(&list, 30);
+    IntListAdd(&list, 40);
+    TEST_ASSERT_EQUAL_INT(4, list.count);
+
+    /* Items beyond capacity are silently dropped when alloc == NULL. */
+    IntListAdd(&list, 99);
+    TEST_ASSERT_EQUAL_INT(4, list.count);
+    TEST_ASSERT_EQUAL_INT(10, IntListGet(&list, 0));
+    TEST_ASSERT_EQUAL_INT(40, IntListGet(&list, 3));
+
+    /* InsertRange into a full fixed list is also a no-op. */
+    int extra[] = { 55, 66 };
+    IntListInsertRange(&list, 1, 2, extra);
+    TEST_ASSERT_EQUAL_INT(4, list.count);
+
+    /* Free is a safe no-op: count is reset, buffer is untouched. */
+    IntListFree(&list);
+    TEST_ASSERT_EQUAL_INT(0, list.count);
+    TEST_ASSERT_EQUAL_INT(40, buffer[3]);
+}
+
+/* Zone allocator: allocations are routed through a memzone_t and the items
+   buffer lives inside the zone. */
+void test_int_list_zone_alloc_routes_through_zone(void)
+{
+    memzone_t* zone = mz_init(1 << 20);
+    TEST_ASSERT_NOT_NULL(zone);
+
+    shl_allocator_t alloc = shl_zone_alloc(zone);
+
+    IntList list;
+    IntListInit(&list, &alloc);
+
+    for (int i = 0; i < 20; i++)
+        IntListAdd(&list, i * 10);
+
+    TEST_ASSERT_EQUAL_INT(20, list.count);
+    TEST_ASSERT_EQUAL_INT(0,   IntListGet(&list, 0));
+    TEST_ASSERT_EQUAL_INT(190, IntListGet(&list, 19));
+
+    /* The items buffer must be a live allocation inside the zone. */
+    TEST_ASSERT_TRUE(mz_contains(zone, list.items));
+
+    IntListFree(&list);
+    mz_destroy(zone);
+}
+
 void setUp(void)
 {
     g_entryFreeCount = 0;
@@ -315,15 +427,18 @@ void tearDown(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_int_list_get_returns_default_when_out_of_range);
+    RUN_TEST(test_shl_heap_alloc_returns_valid_allocator);
+    RUN_TEST(test_int_list_get_returns_zero_when_out_of_range);
     RUN_TEST(test_int_list_insert_remove_and_contains_work_together);
     RUN_TEST(test_int_list_range_operations_copy_and_reverse);
     RUN_TEST(test_int_list_sort_orders_values_ascending);
     RUN_TEST(test_int_list_sort_descending_via_compare_fn);
     RUN_TEST(test_int_list_sort_direction_controlled_by_userdata);
     RUN_TEST(test_int_list_stress_insert_range_and_remove_range);
-    RUN_TEST(test_entry_list_set_releases_replaced_item);
-    RUN_TEST(test_entry_list_remove_range_and_clear_call_free_function);
+    RUN_TEST(test_entry_list_set_replaces_item_at_index);
+    RUN_TEST(test_entry_list_remove_range_and_clear_update_count);
     RUN_TEST(test_entry_list_integration_sorts_remaining_entries_after_mutations);
+    RUN_TEST(test_int_list_init_fixed_uses_stack_buffer);
+    RUN_TEST(test_int_list_zone_alloc_routes_through_zone);
     return UNITY_END();
 }

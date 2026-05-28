@@ -30,15 +30,20 @@
     Declare a concrete map type with shlDeclareMap(name, keyType, valueType),
     then place shlDefineMap(name, keyType, valueType) in exactly one C file.
 
-    CUSTOMISATION
-    Supply a hash function and equality function for the key type, plus a
-    default value for failed lookups and an optional free function for owned
-    values. Keys and values are stored by copy.
+    ALLOCATION
+    Pass an shl_allocator_t* to Init to control where the entries buffer lives.
+    Use shl_heap_alloc() for the default system heap.  To use a memzone_t,
+    include memzone.h before this header and call shl_zone_alloc(zone).
+
+    KEY / VALUE OWNERSHIP
+    The map stores keys and values by copy and does not manage the lifecycle
+    of values.  The caller is responsible for freeing any resources owned by
+    values before calling Remove, Clear, or Free.
 
     NOTES
     This map uses open addressing with linked collision chains stored inside
-    the entry array. Call Free to release internal storage. Remove and Clear
-    invoke the value free hook when one is configured.
+    the entry array.  Get returns a zero-initialised value when the key is
+    not found.  Call Free to release internal storage.
 
     This implementation of the macro is a variant of: https://github.com/mystborn/GenericMap
     to make a closed implementation of the map data structure, where each collision is resolved
@@ -58,14 +63,6 @@
 #include "shl_internal.h"
 
 #define shlDeclareMap(typeName, keyType, valueType) \
-    typedef struct \
-    { \
-        valueType defaultValue; \
-        uint32_t (*hashFn)(keyType key); \
-        bool (*equalsFn)(keyType item1, keyType item2); \
-        void (*freeFn)(valueType item); \
-    } typeName ## Options; \
-    \
     typedef struct { \
         bool active; \
         uint32_t hash; \
@@ -79,14 +76,13 @@
         int32_t capacity; \
         int32_t loadFactor; \
         int32_t shift; \
+        shl_allocator_t* alloc; \
         uint32_t (*hashFn)(keyType key); \
         bool (*equalsFn)(keyType item1, keyType item2); \
-        void (*freeFn)(valueType item); \
-        valueType defaultValue; \
         typeName ## __Entry__* entries; \
     } typeName; \
     \
-    void typeName ## Init(typeName* map, typeName ## Options options); \
+    void typeName ## Init(typeName* map, shl_allocator_t* alloc, uint32_t (*hashFn)(keyType key), bool (*equalsFn)(keyType key1, keyType key2)); \
     void typeName ## Free(typeName* map); \
     bool typeName ## Contains(typeName* map, keyType key); \
     valueType typeName ## Get(typeName* map, keyType key); \
@@ -108,12 +104,7 @@
         { \
             if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
-                valueType currentValue = map->entries[index].value; \
                 map->entries[index].value = value; \
-                \
-                if (map->freeFn) \
-                    map->freeFn(currentValue); \
-                \
                 return; \
             } \
             \
@@ -124,12 +115,7 @@
         { \
             if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
-                valueType currentValue = map->entries[index].value; \
                 map->entries[index].value = value; \
-                \
-                if (map->freeFn) \
-                    map->freeFn(currentValue); \
-                \
                 return; \
             } \
         } \
@@ -159,7 +145,8 @@
         \
         map->loadFactor = oldCapacity; \
         map->capacity = 1 << (32 - (--map->shift)); \
-        map->entries = (typeName ## __Entry__*)calloc(map->capacity, sizeof(typeName ## __Entry__)); \
+        map->entries = (typeName ## __Entry__*)map->alloc->mallocFn(map->alloc->ctx, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
+        memset(map->entries, 0, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
         map->count = 0; \
         \
         for(int32_t i = 0; i < oldCapacity; i++) \
@@ -167,31 +154,30 @@
             if(old[i].active) \
                 typeName ## __insert(map, old[i].key, old[i].value); \
         } \
-        SHL_FREE(old); \
+        map->alloc->freeFn(map->alloc->ctx, old); \
     } \
     \
-    void typeName ## Init(typeName* map, typeName ## Options options) \
+    void typeName ## Init(typeName* map, shl_allocator_t* alloc, uint32_t (*hashFn)(keyType key), bool (*equalsFn)(keyType key1, keyType key2)) \
     { \
-        map->defaultValue = options.defaultValue; \
-        map->hashFn = options.hashFn; \
-        map->equalsFn = options.equalsFn; \
-        map->freeFn = options.freeFn; \
-        map->shift = SHL__INITIAL_HASH_SHIFT; \
-        map->capacity = SHL__INITIAL_CAPACITY; \
+        map->alloc     = alloc; \
+        map->hashFn    = hashFn; \
+        map->equalsFn  = equalsFn; \
+        map->shift     = SHL__INITIAL_HASH_SHIFT; \
+        map->capacity  = SHL__INITIAL_CAPACITY; \
         map->loadFactor = SHL__INITIAL_HASH_LOAD_FACTOR; \
-        map->count = 0; \
-        map->entries = (typeName ## __Entry__ *)SHL_CALLOC((size_t)map->capacity, sizeof(typeName ## __Entry__)); \
+        map->count     = 0; \
+        map->entries   = (typeName ## __Entry__*)alloc->mallocFn(alloc->ctx, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
+        memset(map->entries, 0, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
     } \
     \
     void typeName ## Free(typeName* map) \
     { \
-        if (!map->entries) \
-            return; \
-        \
-        typeName ## Clear(map); \
-        \
-        SHL_FREE(map->entries); \
-        map->entries = 0; \
+        map->count = 0; \
+        if (map->alloc && map->entries) \
+        { \
+            map->alloc->freeFn(map->alloc->ctx, map->entries); \
+            map->entries = NULL; \
+        } \
     } \
     \
     bool typeName ## Contains(typeName* map, keyType key) \
@@ -227,13 +213,18 @@
     valueType typeName ## Get(typeName* map, keyType key) \
     { \
         if (!map->entries) \
-            return map->defaultValue; \
+        { \
+            valueType zero; \
+            memset(&zero, 0, sizeof(valueType)); \
+            return zero; \
+        } \
         \
         int32_t index; \
         uint32_t hash; \
         hash = index = shl__fibHash(map->hashFn(key), map->shift); \
         \
-        valueType value = map->defaultValue; \
+        valueType value; \
+        memset(&value, 0, sizeof(valueType)); \
         \
         while (map->entries[index].active) \
         { \
@@ -278,12 +269,11 @@
         { \
             if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
-                valueType value = map->entries[index].value; \
                 int32_t nextIndex = map->entries[index].next; \
                 if (nextIndex >= 0) \
                 { \
                     map->entries[index] = map->entries[nextIndex]; \
-                    map->entries[nextIndex].value = map->defaultValue; \
+                    memset(&map->entries[nextIndex].value, 0, sizeof(valueType)); \
                     map->entries[nextIndex].next = -1; \
                     map->entries[nextIndex].active = false; \
                 } \
@@ -291,13 +281,10 @@
                 { \
                     if (prevIndex != index) \
                         map->entries[prevIndex].next = -1; \
-                    map->entries[index].value = map->defaultValue; \
+                    memset(&map->entries[index].value, 0, sizeof(valueType)); \
                     map->entries[index].next = -1; \
                     map->entries[index].active = false; \
                 } \
-                \
-                if (map->freeFn) \
-                    map->freeFn(value); \
                 \
                 map->count--; \
                 \
@@ -323,10 +310,7 @@
         { \
             if (map->entries[i].active) \
             { \
-                if (map->freeFn) \
-                    map->freeFn(map->entries[i].value); \
-                \
-                map->entries[i].value = map->defaultValue; \
+                memset(&map->entries[i].value, 0, sizeof(valueType)); \
                 map->entries[i].next = -1; \
                 map->entries[i].active = false; \
             } \

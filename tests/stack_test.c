@@ -1,6 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* memzone.h must be included before stack.h so that the #ifdef SHL_MZ_H
+   bridge in alloc.h is compiled in. */
+#define SHL_MZ_IMPLEMENTATION
+#include "../memzone.h"
+
 #include "../stack.h"
 #include "test_common.h"
 
@@ -18,11 +23,6 @@ typedef struct
 static bool entryEquals(const Entry* left, const Entry* right)
 {
     return left->index == right->index && strcmp(left->name, right->name) == 0;
-}
-
-static void entryFree(Entry* entry)
-{
-    free(entry);
 }
 
 shlDeclareStack(IntStack, int)
@@ -47,13 +47,13 @@ static Entry* makeEntry(int index, const char* name)
     return entry;
 }
 
-void test_int_stack_returns_default_for_empty_stack(void)
+void test_int_stack_returns_zero_for_empty_stack(void)
 {
     IntStack stack;
-    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntStackInit(&stack, shl_heap_alloc());
 
-    TEST_ASSERT_EQUAL_INT(-1, IntStackPeek(&stack));
-    TEST_ASSERT_EQUAL_INT(-1, IntStackPop(&stack));
+    TEST_ASSERT_EQUAL_INT(0, IntStackPeek(&stack));
+    TEST_ASSERT_EQUAL_INT(0, IntStackPop(&stack));
 
     IntStackFree(&stack);
 }
@@ -61,7 +61,7 @@ void test_int_stack_returns_default_for_empty_stack(void)
 void test_int_stack_push_pop_is_lifo(void)
 {
     IntStack stack;
-    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntStackInit(&stack, shl_heap_alloc());
 
     for (int i = 0; i < 16; i++)
     {
@@ -72,49 +72,43 @@ void test_int_stack_push_pop_is_lifo(void)
 
     for (int i = 15; i >= 0; i--)
     {
-        TEST_ASSERT_TRUE(IntStackContains(&stack, i));
+        TEST_ASSERT_TRUE(IntStackContains(&stack, i, intEquals));
         TEST_ASSERT_EQUAL_INT(i, IntStackPop(&stack));
     }
 
     TEST_ASSERT_EQUAL_INT(0, stack.count);
-    TEST_ASSERT_EQUAL_INT(-1, IntStackPop(&stack));
+    TEST_ASSERT_EQUAL_INT(0, IntStackPop(&stack));
     IntStackFree(&stack);
 }
 
 void test_int_stack_clear_resets_count(void)
 {
     IntStack stack;
-    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntStackInit(&stack, shl_heap_alloc());
 
     for (int i = 0; i < 32; i++)
-    {
         IntStackPush(&stack, i);
-    }
 
     IntStackClear(&stack);
 
     TEST_ASSERT_EQUAL_INT(0, stack.count);
-    TEST_ASSERT_EQUAL_INT(-1, IntStackPeek(&stack));
+    TEST_ASSERT_EQUAL_INT(0, IntStackPeek(&stack));
     IntStackFree(&stack);
 }
 
 void test_int_stack_stress_push_pop_cycle(void)
 {
     IntStack stack;
-    IntStackInit(&stack, (IntStackOptions){ .defaultValue = -1, .equalsFn = intEquals });
+    IntStackInit(&stack, shl_heap_alloc());
 
     for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
-    {
         IntStackPush(&stack, i);
-    }
 
     TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT, stack.count);
     TEST_ASSERT_TRUE(stack.capacity >= SHL_TEST_STRESS_COUNT);
 
     for (int i = SHL_TEST_STRESS_COUNT - 1; i >= SHL_TEST_STRESS_COUNT / 2; i--)
-    {
         TEST_ASSERT_EQUAL_INT(i, IntStackPop(&stack));
-    }
 
     TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT / 2, stack.count);
     TEST_ASSERT_EQUAL_INT((SHL_TEST_STRESS_COUNT / 2) - 1, IntStackPeek(&stack));
@@ -124,29 +118,33 @@ void test_int_stack_stress_push_pop_cycle(void)
 void test_entry_stack_contains_equivalent_value(void)
 {
     EntryStack stack;
-    EntryStackInit(&stack, (EntryStackOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = entryFree });
+    EntryStackInit(&stack, shl_heap_alloc());
 
     Entry* stored = makeEntry(7, "entry");
     Entry probe = { .index = 7, .name = "entry" };
 
     EntryStackPush(&stack, stored);
 
-    TEST_ASSERT_TRUE(EntryStackContains(&stack, &probe));
+    TEST_ASSERT_TRUE(EntryStackContains(&stack, &probe, entryEquals));
     TEST_ASSERT_EQUAL_PTR(stored, EntryStackPeek(&stack));
 
+    trackedEntryFree(EntryStackPop(&stack));
     EntryStackFree(&stack);
 }
 
-void test_entry_stack_clear_calls_free_function(void)
+/* Clear resets count to zero.  The caller is responsible for freeing
+   items before calling Clear; the stack itself never calls item destructors. */
+void test_entry_stack_pop_and_clear_update_count(void)
 {
     EntryStack stack;
-    EntryStackInit(&stack, (EntryStackOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+    EntryStackInit(&stack, shl_heap_alloc());
 
-    g_entryFreeCount = 0;
     for (int i = 0; i < 24; i++)
-    {
         EntryStackPush(&stack, makeEntry(i, "tracked"));
-    }
+
+    /* Caller pops and frees all items before Clear. */
+    while (stack.count > 0)
+        trackedEntryFree(EntryStackPop(&stack));
 
     EntryStackClear(&stack);
 
@@ -156,16 +154,13 @@ void test_entry_stack_clear_calls_free_function(void)
     EntryStackFree(&stack);
 }
 
-void test_entry_stack_integration_pop_then_clear_releases_remaining_items(void)
+void test_entry_stack_pop_half_then_clear_updates_count(void)
 {
     EntryStack stack;
-    EntryStackInit(&stack, (EntryStackOptions){ .defaultValue = NULL, .equalsFn = entryEquals, .freeFn = trackedEntryFree });
+    EntryStackInit(&stack, shl_heap_alloc());
 
-    g_entryFreeCount = 0;
     for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
-    {
         EntryStackPush(&stack, makeEntry(i, "bulk"));
-    }
 
     for (int i = 0; i < SHL_TEST_MEDIUM_COUNT / 2; i++)
     {
@@ -175,9 +170,69 @@ void test_entry_stack_integration_pop_then_clear_releases_remaining_items(void)
     }
 
     TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT / 2, stack.count);
+
+    /* Caller drains the remaining items before Clear. */
+    while (stack.count > 0)
+        trackedEntryFree(EntryStackPop(&stack));
+
     EntryStackClear(&stack);
     TEST_ASSERT_EQUAL_INT(SHL_TEST_MEDIUM_COUNT, g_entryFreeCount);
     EntryStackFree(&stack);
+}
+
+/* InitFixed binds a caller-owned buffer; alloc is NULL (no heap involvement).
+   Items beyond capacity are silently dropped.  Free is a safe no-op. */
+void test_int_stack_init_fixed_drops_when_full(void)
+{
+    int buffer[4];
+    IntStack stack;
+    IntStackInitFixed(&stack, buffer, 4);
+
+    TEST_ASSERT_NULL(stack.alloc);
+    TEST_ASSERT_EQUAL_INT(4, stack.capacity);
+
+    IntStackPush(&stack, 10);
+    IntStackPush(&stack, 20);
+    IntStackPush(&stack, 30);
+    IntStackPush(&stack, 40);
+    TEST_ASSERT_EQUAL_INT(4, stack.count);
+
+    /* Items beyond capacity are silently dropped when alloc == NULL. */
+    IntStackPush(&stack, 99);
+    TEST_ASSERT_EQUAL_INT(4, stack.count);
+    TEST_ASSERT_EQUAL_INT(40, IntStackPeek(&stack));
+
+    /* Free is a safe no-op: count is reset, buffer is untouched. */
+    IntStackFree(&stack);
+    TEST_ASSERT_EQUAL_INT(0, stack.count);
+    TEST_ASSERT_EQUAL_INT(40, buffer[3]);
+}
+
+/* Zone allocator: allocations are routed through a memzone_t and the items
+   buffer lives inside the zone. */
+void test_int_stack_zone_alloc_routes_through_zone(void)
+{
+    memzone_t* zone = mz_init(1 << 20);
+    TEST_ASSERT_NOT_NULL(zone);
+
+    shl_allocator_t alloc = shl_zone_alloc(zone);
+
+    IntStack stack;
+    IntStackInit(&stack, &alloc);
+
+    for (int i = 0; i < 20; i++)
+        IntStackPush(&stack, i * 10);
+
+    TEST_ASSERT_EQUAL_INT(20, stack.count);
+    TEST_ASSERT_EQUAL_INT(190, IntStackPeek(&stack));
+    TEST_ASSERT_EQUAL_INT(190, IntStackPop(&stack));
+    TEST_ASSERT_EQUAL_INT(180, IntStackPeek(&stack));
+
+    /* The items buffer must live inside the zone. */
+    TEST_ASSERT_TRUE(mz_contains(zone, stack.items));
+
+    IntStackFree(&stack);
+    mz_destroy(zone);
 }
 
 void setUp(void)
@@ -192,12 +247,14 @@ void tearDown(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_int_stack_returns_default_for_empty_stack);
+    RUN_TEST(test_int_stack_returns_zero_for_empty_stack);
     RUN_TEST(test_int_stack_push_pop_is_lifo);
     RUN_TEST(test_int_stack_clear_resets_count);
     RUN_TEST(test_int_stack_stress_push_pop_cycle);
     RUN_TEST(test_entry_stack_contains_equivalent_value);
-    RUN_TEST(test_entry_stack_clear_calls_free_function);
-    RUN_TEST(test_entry_stack_integration_pop_then_clear_releases_remaining_items);
+    RUN_TEST(test_entry_stack_pop_and_clear_update_count);
+    RUN_TEST(test_entry_stack_pop_half_then_clear_updates_count);
+    RUN_TEST(test_int_stack_init_fixed_drops_when_full);
+    RUN_TEST(test_int_stack_zone_alloc_routes_through_zone);
     return UNITY_END();
 }

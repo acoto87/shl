@@ -2,6 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 
+/* memzone.h must be included before set.h so that the #ifdef SHL_MZ_H
+   bridge in alloc.h is compiled in. */
+#define SHL_MZ_IMPLEMENTATION
+#include "../memzone.h"
+
 #include "../set.h"
 #include "test_common.h"
 
@@ -43,15 +48,6 @@ shlDeclareSet(CollisionSet, int)
 shlDefineSet(CollisionSet, int)
 shlDeclareSet(StringSet, char*)
 shlDefineSet(StringSet, char*)
-shlDeclareSet(TrackedIntSet, int)
-shlDefineSet(TrackedIntSet, int)
-
-static int g_setFreeCount = 0;
-
-static void freeTrackedInt(int value)
-{
-    g_setFreeCount += value;
-}
 
 static char* makeStringFromIndex(int value)
 {
@@ -72,7 +68,7 @@ static void freeStr(char* str)
 void test_int_set_add_contains_and_rejects_duplicates(void)
 {
     IntSet set;
-    IntSetInit(&set, (IntSetOptions){ .defaultValue = 0, .hashFn = hashInt, .equalsFn = equalsInt });
+    IntSetInit(&set, shl_heap_alloc(), hashInt, equalsInt);
 
     TEST_ASSERT_TRUE(IntSetAdd(&set, 1));
     TEST_ASSERT_TRUE(IntSetAdd(&set, 2));
@@ -89,19 +85,15 @@ void test_int_set_add_contains_and_rejects_duplicates(void)
 void test_collision_set_remove_preserves_other_entries(void)
 {
     CollisionSet set;
-    CollisionSetInit(&set, (CollisionSetOptions){ .defaultValue = -1, .hashFn = collideInt, .equalsFn = equalsInt });
+    CollisionSetInit(&set, shl_heap_alloc(), collideInt, equalsInt);
 
     for (int i = 0; i < 64; i++)
-    {
         TEST_ASSERT_TRUE(CollisionSetAdd(&set, i));
-    }
 
     CollisionSetRemove(&set, 0);
     TEST_ASSERT_FALSE(CollisionSetContains(&set, 0));
     for (int i = 1; i < 64; i++)
-    {
         TEST_ASSERT_TRUE(CollisionSetContains(&set, i));
-    }
     TEST_ASSERT_EQUAL_INT(63, set.count);
 
     CollisionSetFree(&set);
@@ -110,12 +102,10 @@ void test_collision_set_remove_preserves_other_entries(void)
 void test_int_set_stress_add_and_remove_halves_count(void)
 {
     IntSet set;
-    IntSetInit(&set, (IntSetOptions){ .defaultValue = 0, .hashFn = hashInt, .equalsFn = equalsInt });
+    IntSetInit(&set, shl_heap_alloc(), hashInt, equalsInt);
 
     for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
-    {
         TEST_ASSERT_TRUE(IntSetAdd(&set, i));
-    }
 
     for (int i = 0; i < SHL_TEST_STRESS_COUNT; i += 2)
     {
@@ -125,38 +115,47 @@ void test_int_set_stress_add_and_remove_halves_count(void)
 
     TEST_ASSERT_EQUAL_INT(SHL_TEST_STRESS_COUNT / 2, set.count);
     for (int i = 1; i < SHL_TEST_STRESS_COUNT; i += 2)
-    {
         TEST_ASSERT_TRUE(IntSetContains(&set, i));
-    }
 
     IntSetFree(&set);
 }
 
-void test_tracked_set_clear_calls_free_function_for_remaining_items(void)
+/* Remove decrements count; Clear resets it to zero.  The caller (not the
+   set) is responsible for freeing any resources owned by items. */
+void test_int_set_remove_and_clear_update_count(void)
 {
-    TrackedIntSet set;
-    TrackedIntSetInit(&set, (TrackedIntSetOptions){ .defaultValue = 0, .hashFn = collideInt, .equalsFn = equalsInt, .freeFn = freeTrackedInt });
+    /* Use collideInt so all keys land in the same bucket, exercising
+       the collision chain through Add, Remove, and Clear. */
+    CollisionSet set;
+    CollisionSetInit(&set, shl_heap_alloc(), collideInt, equalsInt);
 
-    TEST_ASSERT_TRUE(TrackedIntSetAdd(&set, 1));
-    TEST_ASSERT_TRUE(TrackedIntSetAdd(&set, 10));
-    TEST_ASSERT_TRUE(TrackedIntSetAdd(&set, 100));
-    TrackedIntSetRemove(&set, 10);
+    TEST_ASSERT_TRUE(CollisionSetAdd(&set, 1));
+    TEST_ASSERT_TRUE(CollisionSetAdd(&set, 10));
+    TEST_ASSERT_TRUE(CollisionSetAdd(&set, 100));
+    TEST_ASSERT_EQUAL_INT(3, set.count);
 
-    TEST_ASSERT_EQUAL_INT(10, g_setFreeCount);
-    TrackedIntSetClear(&set);
+    CollisionSetRemove(&set, 10);
+    TEST_ASSERT_EQUAL_INT(2, set.count);
+    TEST_ASSERT_FALSE(CollisionSetContains(&set, 10));
+    TEST_ASSERT_TRUE(CollisionSetContains(&set, 1));
+    TEST_ASSERT_TRUE(CollisionSetContains(&set, 100));
 
-    TEST_ASSERT_EQUAL_INT(111, g_setFreeCount);
+    CollisionSetClear(&set);
     TEST_ASSERT_EQUAL_INT(0, set.count);
-    TrackedIntSetFree(&set);
+    TEST_ASSERT_FALSE(CollisionSetContains(&set, 1));
+    TEST_ASSERT_FALSE(CollisionSetContains(&set, 100));
+
+    CollisionSetFree(&set);
 }
 
-void test_string_set_contains_equivalent_key_and_releases_removed_values(void)
+/* Caller frees items before Remove; Remove does not call any destructor. */
+void test_string_set_remove_and_caller_frees_items(void)
 {
     StringSet set;
-    StringSetInit(&set, (StringSetOptions){ .defaultValue = NULL, .hashFn = fnv32, .equalsFn = equalsStr, .freeFn = freeStr });
+    StringSetInit(&set, shl_heap_alloc(), fnv32, equalsStr);
 
     char* alpha = makeStringFromIndex(1);
-    char* beta = makeStringFromIndex(2);
+    char* beta  = makeStringFromIndex(2);
     char* gamma = makeStringFromIndex(3);
     char probe[32];
 
@@ -167,22 +166,27 @@ void test_string_set_contains_equivalent_key_and_releases_removed_values(void)
     strcpy(probe, beta);
     TEST_ASSERT_TRUE(StringSetContains(&set, probe));
 
+    /* Remove the entry first; the set stores a copy of the pointer so the
+       comparison needs the pointed-to memory to still be valid.  The caller
+       frees the owned string after the entry is gone from the set. */
     StringSetRemove(&set, probe);
+    freeStr(beta);
     TEST_ASSERT_FALSE(StringSetContains(&set, probe));
     TEST_ASSERT_EQUAL_INT(2, set.count);
 
+    /* Free remaining items before releasing the set. */
+    freeStr(alpha);
+    freeStr(gamma);
     StringSetFree(&set);
 }
 
 void test_string_set_integration_bulk_unique_insert_then_duplicate_probe(void)
 {
     StringSet set;
-    StringSetInit(&set, (StringSetOptions){ .defaultValue = NULL, .hashFn = fnv32, .equalsFn = equalsStr, .freeFn = freeStr });
+    StringSetInit(&set, shl_heap_alloc(), fnv32, equalsStr);
 
     for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
-    {
         TEST_ASSERT_TRUE(StringSetAdd(&set, makeStringFromIndex(i)));
-    }
 
     for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i += 5)
     {
@@ -195,12 +199,44 @@ void test_string_set_integration_bulk_unique_insert_then_duplicate_probe(void)
     TEST_ASSERT_TRUE(StringSetContains(&set, "value-0"));
     TEST_ASSERT_TRUE(StringSetContains(&set, "value-255"));
 
+    /* Free all strings still in the set before releasing it. */
+    for (int i = 0; i < set.capacity; i++)
+    {
+        if (set.entries[i].active)
+            freeStr(set.entries[i].item);
+    }
+
     StringSetFree(&set);
+}
+
+/* Zone allocator: allocations are routed through a memzone_t and the
+   entries buffer lives inside the zone. */
+void test_int_set_zone_alloc_routes_through_zone(void)
+{
+    memzone_t* zone = mz_init(1 << 20);
+    TEST_ASSERT_NOT_NULL(zone);
+
+    shl_allocator_t alloc = shl_zone_alloc(zone);
+
+    IntSet set;
+    IntSetInit(&set, &alloc, hashInt, equalsInt);
+
+    for (int i = 0; i < 20; i++)
+        TEST_ASSERT_TRUE(IntSetAdd(&set, i));
+
+    TEST_ASSERT_EQUAL_INT(20, set.count);
+    TEST_ASSERT_TRUE(IntSetContains(&set, 0));
+    TEST_ASSERT_TRUE(IntSetContains(&set, 19));
+
+    /* The entries buffer must live inside the zone. */
+    TEST_ASSERT_TRUE(mz_contains(zone, set.entries));
+
+    IntSetFree(&set);
+    mz_destroy(zone);
 }
 
 void setUp(void)
 {
-    g_setFreeCount = 0;
 }
 
 void tearDown(void)
@@ -213,8 +249,9 @@ int main(void)
     RUN_TEST(test_int_set_add_contains_and_rejects_duplicates);
     RUN_TEST(test_collision_set_remove_preserves_other_entries);
     RUN_TEST(test_int_set_stress_add_and_remove_halves_count);
-    RUN_TEST(test_tracked_set_clear_calls_free_function_for_remaining_items);
-    RUN_TEST(test_string_set_contains_equivalent_key_and_releases_removed_values);
+    RUN_TEST(test_int_set_remove_and_clear_update_count);
+    RUN_TEST(test_string_set_remove_and_caller_frees_items);
     RUN_TEST(test_string_set_integration_bulk_unique_insert_then_duplicate_probe);
+    RUN_TEST(test_int_set_zone_alloc_routes_through_zone);
     return UNITY_END();
 }

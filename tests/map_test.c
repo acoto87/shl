@@ -3,6 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* memzone.h must be included before map.h so that the #ifdef SHL_MZ_H
+   bridge in alloc.h is compiled in. */
+#define SHL_MZ_IMPLEMENTATION
+#include "../memzone.h"
+
 #include "../map.h"
 #include "test_common.h"
 
@@ -44,15 +49,6 @@ shlDeclareMap(CollisionMap, int, int)
 shlDefineMap(CollisionMap, int, int)
 shlDeclareMap(StringMap, char*, char*)
 shlDefineMap(StringMap, char*, char*)
-shlDeclareMap(TrackedMap, int, int)
-shlDefineMap(TrackedMap, int, int)
-
-static int g_mapFreeCount = 0;
-
-static void freeTrackedInt(int value)
-{
-    g_mapFreeCount += value;
-}
 
 static char* duplicateString(const char* text)
 {
@@ -81,15 +77,10 @@ static char* makeUpperValue(const char* text)
     return copy;
 }
 
-static void freeStr(char* str)
-{
-    free(str);
-}
-
 void test_int_map_set_get_and_update_values(void)
 {
     IntMap map;
-    IntMapInit(&map, (IntMapOptions){ .defaultValue = -1, .hashFn = hashInt, .equalsFn = equalsInt });
+    IntMapInit(&map, shl_heap_alloc(), hashInt, equalsInt);
 
     IntMapSet(&map, 2, 4);
     IntMapSet(&map, 3, 9);
@@ -104,10 +95,22 @@ void test_int_map_set_get_and_update_values(void)
     IntMapFree(&map);
 }
 
+void test_int_map_get_returns_zero_when_key_absent(void)
+{
+    IntMap map;
+    IntMapInit(&map, shl_heap_alloc(), hashInt, equalsInt);
+
+    TEST_ASSERT_EQUAL_INT(0, IntMapGet(&map, 99));
+    IntMapSet(&map, 1, 42);
+    TEST_ASSERT_EQUAL_INT(0, IntMapGet(&map, 2));
+
+    IntMapFree(&map);
+}
+
 void test_collision_map_remove_preserves_other_entries(void)
 {
     CollisionMap map;
-    CollisionMapInit(&map, (CollisionMapOptions){ .defaultValue = -1, .hashFn = collideInt, .equalsFn = equalsInt });
+    CollisionMapInit(&map, shl_heap_alloc(), collideInt, equalsInt);
 
     for (int i = 0; i < 64; i++)
     {
@@ -128,7 +131,7 @@ void test_collision_map_remove_preserves_other_entries(void)
 void test_int_map_stress_remove_even_keys_leaves_odds(void)
 {
     IntMap map;
-    IntMapInit(&map, (IntMapOptions){ .defaultValue = -1, .hashFn = hashInt, .equalsFn = equalsInt });
+    IntMapInit(&map, shl_heap_alloc(), hashInt, equalsInt);
 
     for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
     {
@@ -151,27 +154,37 @@ void test_int_map_stress_remove_even_keys_leaves_odds(void)
     IntMapFree(&map);
 }
 
-void test_tracked_map_clear_calls_free_function_for_live_values(void)
+/* Remove decrements count; Clear resets it to zero.  The caller (not the
+   map) is responsible for freeing any resources owned by values. */
+void test_int_map_remove_and_clear_update_count(void)
 {
-    TrackedMap map;
-    TrackedMapInit(&map, (TrackedMapOptions){ .defaultValue = 0, .hashFn = collideInt, .equalsFn = equalsInt, .freeFn = freeTrackedInt });
+    /* Use collideInt so all keys land in the same bucket, exercising the
+       collision chain through Set, Remove, and Clear. */
+    IntMap map;
+    IntMapInit(&map, shl_heap_alloc(), collideInt, equalsInt);
 
-    TrackedMapSet(&map, 1, 1);
-    TrackedMapSet(&map, 2, 10);
-    TrackedMapSet(&map, 3, 100);
-    TrackedMapRemove(&map, 2);
+    IntMapSet(&map, 1, 1);
+    IntMapSet(&map, 2, 10);
+    IntMapSet(&map, 3, 100);
+    TEST_ASSERT_EQUAL_INT(3, map.count);
 
-    TEST_ASSERT_EQUAL_INT(10, g_mapFreeCount);
-    TrackedMapClear(&map);
-    TEST_ASSERT_EQUAL_INT(111, g_mapFreeCount);
+    IntMapRemove(&map, 2);
+    TEST_ASSERT_EQUAL_INT(2, map.count);
+    TEST_ASSERT_FALSE(IntMapContains(&map, 2));
+    TEST_ASSERT_TRUE(IntMapContains(&map, 1));
+    TEST_ASSERT_TRUE(IntMapContains(&map, 3));
+
+    IntMapClear(&map);
     TEST_ASSERT_EQUAL_INT(0, map.count);
-    TrackedMapFree(&map);
+    TEST_ASSERT_FALSE(IntMapContains(&map, 1));
+    TEST_ASSERT_FALSE(IntMapContains(&map, 3));
+    IntMapFree(&map);
 }
 
 void test_string_map_contains_equivalent_keys_and_updates_values(void)
 {
     StringMap map;
-    StringMapInit(&map, (StringMapOptions){ .defaultValue = NULL, .hashFn = fnv32, .equalsFn = equalsStr, .freeFn = freeStr });
+    StringMapInit(&map, shl_heap_alloc(), fnv32, equalsStr);
 
     char* key = makeKey(7);
     char* initial = makeUpperValue(key);
@@ -183,10 +196,14 @@ void test_string_map_contains_equivalent_keys_and_updates_values(void)
     TEST_ASSERT_TRUE(StringMapContains(&map, probe));
     TEST_ASSERT_EQUAL_STRING(initial, StringMapGet(&map, probe));
 
+    /* Caller frees the old value before replacing it. */
+    free(StringMapGet(&map, probe));
     StringMapSet(&map, key, replacement);
     TEST_ASSERT_EQUAL_STRING("UPDATED", StringMapGet(&map, probe));
     TEST_ASSERT_EQUAL_INT(1, map.count);
 
+    /* Caller frees remaining value before releasing the map. */
+    free(StringMapGet(&map, key));
     StringMapFree(&map);
     free(key);
 }
@@ -194,7 +211,7 @@ void test_string_map_contains_equivalent_keys_and_updates_values(void)
 void test_string_map_integration_bulk_insert_update_and_remove(void)
 {
     StringMap map;
-    StringMapInit(&map, (StringMapOptions){ .defaultValue = NULL, .hashFn = fnv32, .equalsFn = equalsStr, .freeFn = freeStr });
+    StringMapInit(&map, shl_heap_alloc(), fnv32, equalsStr);
 
     char** keys = (char**)calloc((size_t)SHL_TEST_MEDIUM_COUNT, sizeof(char*));
     TEST_ASSERT_NOT_NULL(keys);
@@ -207,6 +224,8 @@ void test_string_map_integration_bulk_insert_update_and_remove(void)
 
     for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i += 3)
     {
+        /* Caller frees old value before replacing it. */
+        free(StringMapGet(&map, keys[i]));
         StringMapSet(&map, keys[i], duplicateString("PATCHED"));
         TEST_ASSERT_EQUAL_STRING("PATCHED", StringMapGet(&map, keys[i]));
     }
@@ -215,6 +234,8 @@ void test_string_map_integration_bulk_insert_update_and_remove(void)
     {
         if (i < 32)
         {
+            /* Caller frees the value before removing the entry. */
+            free(StringMapGet(&map, keys[i]));
             StringMapRemove(&map, keys[i]);
             TEST_ASSERT_FALSE(StringMapContains(&map, keys[i]));
         }
@@ -225,17 +246,48 @@ void test_string_map_integration_bulk_insert_update_and_remove(void)
         TEST_ASSERT_TRUE(StringMapContains(&map, keys[i]));
     }
 
-    StringMapFree(&map);
+    /* Free remaining live values (Get returns NULL for absent keys). */
     for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
     {
-        free(keys[i]);
+        char* val = StringMapGet(&map, keys[i]);
+        if (val)
+            free(val);
     }
+
+    StringMapFree(&map);
+    for (int i = 0; i < SHL_TEST_MEDIUM_COUNT; i++)
+        free(keys[i]);
     free(keys);
+}
+
+/* Zone allocator: allocations are routed through a memzone_t and the
+   entries buffer lives inside the zone. */
+void test_int_map_zone_alloc_routes_through_zone(void)
+{
+    memzone_t* zone = mz_init(1 << 20);
+    TEST_ASSERT_NOT_NULL(zone);
+
+    shl_allocator_t alloc = shl_zone_alloc(zone);
+
+    IntMap map;
+    IntMapInit(&map, &alloc, hashInt, equalsInt);
+
+    for (int i = 0; i < 20; i++)
+        IntMapSet(&map, i, i * i);
+
+    TEST_ASSERT_EQUAL_INT(20, map.count);
+    TEST_ASSERT_EQUAL_INT(0,   IntMapGet(&map, 0));
+    TEST_ASSERT_EQUAL_INT(361, IntMapGet(&map, 19));
+
+    /* The entries buffer must live inside the zone. */
+    TEST_ASSERT_TRUE(mz_contains(zone, map.entries));
+
+    IntMapFree(&map);
+    mz_destroy(zone);
 }
 
 void setUp(void)
 {
-    g_mapFreeCount = 0;
 }
 
 void tearDown(void)
@@ -246,10 +298,12 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_int_map_set_get_and_update_values);
+    RUN_TEST(test_int_map_get_returns_zero_when_key_absent);
     RUN_TEST(test_collision_map_remove_preserves_other_entries);
     RUN_TEST(test_int_map_stress_remove_even_keys_leaves_odds);
-    RUN_TEST(test_tracked_map_clear_calls_free_function_for_live_values);
+    RUN_TEST(test_int_map_remove_and_clear_update_count);
     RUN_TEST(test_string_map_contains_equivalent_keys_and_updates_values);
     RUN_TEST(test_string_map_integration_bulk_insert_update_and_remove);
+    RUN_TEST(test_int_map_zone_alloc_routes_through_zone);
     return UNITY_END();
 }
