@@ -25,7 +25,7 @@
 
     Self-contained single-header with no SHL dependencies.  Include it
     directly if you only need the allocator type, or include any SHL collection
-    header which pulls it in via shl_internal.h.
+    header which pulls it in via internal.h.
 
     USAGE
     Use shl_heap_alloc() for the default system-heap allocator.
