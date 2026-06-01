@@ -272,7 +272,7 @@
                 return; \
         } \
         \
-        typeName ## __insert(map, key, value); \
+        if (!typeName ## __insert(map, key, value)) return; \
     } \
     \
     void typeName ## Remove(typeName* map, keyType key) \
