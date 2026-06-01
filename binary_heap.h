@@ -129,8 +129,9 @@
     \
     void typeName ## Init(typeName* heap, shl_allocator_t* alloc, int32_t (*compareFn)(const itemType item1, const itemType item2)) \
     { \
+        *heap = (typeName){ 0 }; \
         if (!alloc) alloc = shl_heap_alloc(); \
-        if (!alloc->mallocFn) return; \
+        if (!alloc || !alloc->mallocFn || !compareFn) return; \
         heap->alloc     = alloc; \
         heap->compareFn = compareFn; \
         heap->capacity  = SHL__INITIAL_CAPACITY; \

@@ -82,6 +82,30 @@ void test_int_set_add_contains_and_rejects_duplicates(void)
     IntSetFree(&set);
 }
 
+void test_int_set_init_with_missing_callbacks_resets_to_safe_empty_state(void)
+{
+    IntSet set;
+    memset(&set, 0xA5, sizeof(set));
+
+    IntSetInit(&set, shl_heap_alloc(), NULL, equalsInt);
+
+    TEST_ASSERT_EQUAL_INT(0, set.count);
+    TEST_ASSERT_EQUAL_INT(0, set.capacity);
+    TEST_ASSERT_EQUAL_INT(0, set.loadFactor);
+    TEST_ASSERT_EQUAL_INT(0, set.shift);
+    TEST_ASSERT_NULL(set.alloc);
+    TEST_ASSERT_NULL(set.hashFn);
+    TEST_ASSERT_NULL(set.equalsFn);
+    TEST_ASSERT_NULL(set.entries);
+
+    TEST_ASSERT_FALSE(IntSetAdd(&set, 1));
+    TEST_ASSERT_FALSE(IntSetContains(&set, 1));
+
+    IntSetFree(&set);
+    TEST_ASSERT_EQUAL_INT(0, set.count);
+    TEST_ASSERT_NULL(set.entries);
+}
+
 void test_collision_set_remove_preserves_other_entries(void)
 {
     CollisionSet set;
@@ -247,6 +271,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_int_set_add_contains_and_rejects_duplicates);
+    RUN_TEST(test_int_set_init_with_missing_callbacks_resets_to_safe_empty_state);
     RUN_TEST(test_collision_set_remove_preserves_other_entries);
     RUN_TEST(test_int_set_stress_add_and_remove_halves_count);
     RUN_TEST(test_int_set_remove_and_clear_update_count);

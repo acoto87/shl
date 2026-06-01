@@ -176,8 +176,9 @@
     \
     void typeName ## Init(typeName* map, shl_allocator_t* alloc, uint32_t (*hashFn)(keyType key), bool (*equalsFn)(keyType key1, keyType key2)) \
     { \
+        *map = (typeName){ 0 }; \
         if (!alloc) alloc = shl_heap_alloc(); \
-        if (!alloc->mallocFn) return; \
+        if (!alloc || !alloc->mallocFn || !hashFn || !equalsFn) return; \
         map->alloc     = alloc; \
         map->hashFn    = hashFn; \
         map->equalsFn  = equalsFn; \

@@ -118,8 +118,9 @@
     \
     void typeName ## Init(typeName* list, shl_allocator_t* alloc) \
     { \
+        *list = (typeName){ 0 }; \
         if (!alloc) alloc = shl_heap_alloc(); \
-        if (!alloc->mallocFn) return; \
+        if (!alloc || !alloc->mallocFn) return; \
         list->alloc    = alloc; \
         list->capacity = SHL__INITIAL_CAPACITY; \
         list->count    = 0; \

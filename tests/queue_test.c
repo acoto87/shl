@@ -58,6 +58,29 @@ void test_int_queue_returns_zero_for_empty_queue(void)
     IntQueueFree(&queue);
 }
 
+void test_int_queue_init_with_invalid_allocator_resets_to_safe_empty_state(void)
+{
+    shl_allocator_t invalidAlloc = { 0 };
+    IntQueue queue;
+    memset(&queue, 0xA5, sizeof(queue));
+
+    IntQueueInit(&queue, &invalidAlloc);
+
+    TEST_ASSERT_EQUAL_INT(0, queue.head);
+    TEST_ASSERT_EQUAL_INT(0, queue.tail);
+    TEST_ASSERT_EQUAL_INT(0, queue.count);
+    TEST_ASSERT_EQUAL_INT(0, queue.capacity);
+    TEST_ASSERT_NULL(queue.alloc);
+    TEST_ASSERT_NULL(queue.items);
+
+    IntQueuePush(&queue, 42);
+    TEST_ASSERT_EQUAL_INT(0, queue.count);
+
+    IntQueueFree(&queue);
+    TEST_ASSERT_EQUAL_INT(0, queue.count);
+    TEST_ASSERT_NULL(queue.items);
+}
+
 void test_int_queue_preserves_fifo_order(void)
 {
     IntQueue queue;
@@ -265,6 +288,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_int_queue_returns_zero_for_empty_queue);
+    RUN_TEST(test_int_queue_init_with_invalid_allocator_resets_to_safe_empty_state);
     RUN_TEST(test_int_queue_preserves_fifo_order);
     RUN_TEST(test_int_queue_wraparound_keeps_order);
     RUN_TEST(test_int_queue_stress_push_pop_mix_keeps_consistent_front);

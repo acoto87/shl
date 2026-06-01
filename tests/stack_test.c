@@ -58,6 +58,27 @@ void test_int_stack_returns_zero_for_empty_stack(void)
     IntStackFree(&stack);
 }
 
+void test_int_stack_init_with_invalid_allocator_resets_to_safe_empty_state(void)
+{
+    shl_allocator_t invalidAlloc = { 0 };
+    IntStack stack;
+    memset(&stack, 0xA5, sizeof(stack));
+
+    IntStackInit(&stack, &invalidAlloc);
+
+    TEST_ASSERT_EQUAL_INT(0, stack.count);
+    TEST_ASSERT_EQUAL_INT(0, stack.capacity);
+    TEST_ASSERT_NULL(stack.alloc);
+    TEST_ASSERT_NULL(stack.items);
+
+    IntStackPush(&stack, 42);
+    TEST_ASSERT_EQUAL_INT(0, stack.count);
+
+    IntStackFree(&stack);
+    TEST_ASSERT_EQUAL_INT(0, stack.count);
+    TEST_ASSERT_NULL(stack.items);
+}
+
 void test_int_stack_push_pop_is_lifo(void)
 {
     IntStack stack;
@@ -248,6 +269,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_int_stack_returns_zero_for_empty_stack);
+    RUN_TEST(test_int_stack_init_with_invalid_allocator_resets_to_safe_empty_state);
     RUN_TEST(test_int_stack_push_pop_is_lifo);
     RUN_TEST(test_int_stack_clear_resets_count);
     RUN_TEST(test_int_stack_stress_push_pop_cycle);

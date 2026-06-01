@@ -110,8 +110,9 @@
     \
     void typeName ## Init(typeName* set, shl_allocator_t* alloc, uint32_t (*hashFn)(const itemType item), bool (*equalsFn)(const itemType item1, const itemType item2)) \
     { \
+        *set = (typeName){ 0 }; \
         if (!alloc) alloc = shl_heap_alloc(); \
-        if (!alloc->mallocFn) return; \
+        if (!alloc || !alloc->mallocFn || !hashFn || !equalsFn) return; \
         set->alloc      = alloc; \
         set->hashFn     = hashFn; \
         set->equalsFn   = equalsFn; \

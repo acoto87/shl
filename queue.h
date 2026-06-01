@@ -79,8 +79,9 @@
 #define shlDefineQueue(typeName, itemType) \
     void typeName ## Init(typeName* queue, shl_allocator_t* alloc) \
     { \
+        *queue = (typeName){ 0 }; \
         if (!alloc) alloc = shl_heap_alloc(); \
-        if (!alloc->mallocFn) return; \
+        if (!alloc || !alloc->mallocFn) return; \
         queue->alloc    = alloc; \
         queue->capacity = SHL__INITIAL_CAPACITY; \
         queue->count    = 0; \

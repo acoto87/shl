@@ -45,6 +45,27 @@ void test_heap_returns_zero_for_empty_heap(void)
     IntHeapFree(&heap);
 }
 
+void test_heap_init_with_null_compare_resets_to_safe_empty_state(void)
+{
+    IntHeap heap;
+    memset(&heap, 0xA5, sizeof(heap));
+
+    IntHeapInit(&heap, shl_heap_alloc(), NULL);
+
+    TEST_ASSERT_EQUAL_INT(0, heap.count);
+    TEST_ASSERT_EQUAL_INT(0, heap.capacity);
+    TEST_ASSERT_NULL(heap.alloc);
+    TEST_ASSERT_NULL(heap.compareFn);
+    TEST_ASSERT_NULL(heap.items);
+
+    IntHeapPush(&heap, 42);
+    TEST_ASSERT_EQUAL_INT(0, heap.count);
+
+    IntHeapFree(&heap);
+    TEST_ASSERT_EQUAL_INT(0, heap.count);
+    TEST_ASSERT_NULL(heap.items);
+}
+
 void test_heap_peek_tracks_minimum_value(void)
 {
     const int values[] = { 7, 3, 9, 1, 5 };
@@ -193,6 +214,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_heap_returns_zero_for_empty_heap);
+    RUN_TEST(test_heap_init_with_null_compare_resets_to_safe_empty_state);
     RUN_TEST(test_heap_peek_tracks_minimum_value);
     RUN_TEST(test_heap_pop_returns_sorted_values);
     RUN_TEST(test_heap_update_reorders_entry_both_directions);

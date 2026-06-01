@@ -95,6 +95,32 @@ void test_int_map_set_get_and_update_values(void)
     IntMapFree(&map);
 }
 
+void test_int_map_init_with_missing_callbacks_resets_to_safe_empty_state(void)
+{
+    IntMap map;
+    memset(&map, 0xA5, sizeof(map));
+
+    IntMapInit(&map, shl_heap_alloc(), NULL, equalsInt);
+
+    TEST_ASSERT_EQUAL_INT(0, map.count);
+    TEST_ASSERT_EQUAL_INT(0, map.capacity);
+    TEST_ASSERT_EQUAL_INT(0, map.loadFactor);
+    TEST_ASSERT_EQUAL_INT(0, map.shift);
+    TEST_ASSERT_NULL(map.alloc);
+    TEST_ASSERT_NULL(map.hashFn);
+    TEST_ASSERT_NULL(map.equalsFn);
+    TEST_ASSERT_NULL(map.entries);
+
+    IntMapSet(&map, 1, 2);
+    TEST_ASSERT_EQUAL_INT(0, map.count);
+    TEST_ASSERT_FALSE(IntMapContains(&map, 1));
+    TEST_ASSERT_EQUAL_INT(0, IntMapGet(&map, 1));
+
+    IntMapFree(&map);
+    TEST_ASSERT_EQUAL_INT(0, map.count);
+    TEST_ASSERT_NULL(map.entries);
+}
+
 void test_int_map_get_returns_zero_when_key_absent(void)
 {
     IntMap map;
@@ -298,6 +324,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_int_map_set_get_and_update_values);
+    RUN_TEST(test_int_map_init_with_missing_callbacks_resets_to_safe_empty_state);
     RUN_TEST(test_int_map_get_returns_zero_when_key_absent);
     RUN_TEST(test_collision_map_remove_preserves_other_entries);
     RUN_TEST(test_int_map_stress_remove_even_keys_leaves_odds);

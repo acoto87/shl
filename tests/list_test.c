@@ -113,6 +113,27 @@ void test_int_list_get_returns_zero_when_out_of_range(void)
     IntListFree(&list);
 }
 
+void test_int_list_init_with_invalid_allocator_resets_to_safe_empty_state(void)
+{
+    shl_allocator_t invalidAlloc = { 0 };
+    IntList list;
+    memset(&list, 0xA5, sizeof(list));
+
+    IntListInit(&list, &invalidAlloc);
+
+    TEST_ASSERT_EQUAL_INT(0, list.count);
+    TEST_ASSERT_EQUAL_INT(0, list.capacity);
+    TEST_ASSERT_NULL(list.alloc);
+    TEST_ASSERT_NULL(list.items);
+
+    IntListAdd(&list, 42);
+    TEST_ASSERT_EQUAL_INT(0, list.count);
+
+    IntListFree(&list);
+    TEST_ASSERT_EQUAL_INT(0, list.count);
+    TEST_ASSERT_NULL(list.items);
+}
+
 void test_int_list_insert_remove_and_contains_work_together(void)
 {
     IntList list;
@@ -429,6 +450,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_shl_heap_alloc_returns_valid_allocator);
     RUN_TEST(test_int_list_get_returns_zero_when_out_of_range);
+    RUN_TEST(test_int_list_init_with_invalid_allocator_resets_to_safe_empty_state);
     RUN_TEST(test_int_list_insert_remove_and_contains_work_together);
     RUN_TEST(test_int_list_range_operations_copy_and_reverse);
     RUN_TEST(test_int_list_sort_orders_values_ascending);

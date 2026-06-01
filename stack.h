@@ -77,8 +77,9 @@
 #define shlDefineStack(typeName, itemType) \
     void typeName ## Init(typeName* stack, shl_allocator_t* alloc) \
     { \
+        *stack = (typeName){ 0 }; \
         if (!alloc) alloc = shl_heap_alloc(); \
-        if (!alloc->mallocFn) return; \
+        if (!alloc || !alloc->mallocFn) return; \
         stack->alloc    = alloc; \
         stack->capacity = SHL__INITIAL_CAPACITY; \
         stack->count    = 0; \
