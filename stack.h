@@ -54,7 +54,7 @@
 #ifndef SHL_STACK_H
 #define SHL_STACK_H
 
-#include "shl_internal.h"
+#include "internal.h"
 
 #define shlDeclareStack(typeName, itemType) \
     typedef struct \
@@ -77,6 +77,8 @@
 #define shlDefineStack(typeName, itemType) \
     void typeName ## Init(typeName* stack, shl_allocator_t* alloc) \
     { \
+        if (!alloc) alloc = shl_heap_alloc(); \
+        if (!alloc->mallocFn) return; \
         stack->alloc    = alloc; \
         stack->capacity = SHL__INITIAL_CAPACITY; \
         stack->count    = 0; \
@@ -94,11 +96,9 @@
     void typeName ## Free(typeName* stack) \
     { \
         stack->count = 0; \
-        if (stack->alloc && stack->items) \
-        { \
+        if (stack->items && stack->alloc && stack->alloc->freeFn) \
             stack->alloc->freeFn(stack->alloc->ctx, stack->items); \
-            stack->items = NULL; \
-        } \
+        stack->items = NULL; \
     } \
     \
     void typeName ## Push(typeName* stack, itemType value) \
@@ -108,9 +108,8 @@
         \
         if (stack->count == stack->capacity) \
         { \
-            if (!stack->alloc) \
+            if (!shl__resizeArray((void**)&stack->items, &stack->capacity, stack->count + 1, sizeof(itemType), stack->alloc)) \
                 return; \
-            shl__resizeArrayWith((void**)&stack->items, &stack->capacity, stack->count + 1, sizeof(itemType), stack->alloc); \
         } \
         \
         stack->items[stack->count] = value; \

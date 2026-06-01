@@ -56,7 +56,7 @@
 #ifndef SHL_LIST_H
 #define SHL_LIST_H
 
-#include "shl_internal.h"
+#include "internal.h"
 
 #define shlDeclareList(typeName, itemType) \
     typedef struct \
@@ -118,6 +118,8 @@
     \
     void typeName ## Init(typeName* list, shl_allocator_t* alloc) \
     { \
+        if (!alloc) alloc = shl_heap_alloc(); \
+        if (!alloc->mallocFn) return; \
         list->alloc    = alloc; \
         list->capacity = SHL__INITIAL_CAPACITY; \
         list->count    = 0; \
@@ -135,11 +137,9 @@
     void typeName ## Free(typeName* list) \
     { \
         list->count = 0; \
-        if (list->alloc && list->items) \
-        { \
+        if (list->items && list->alloc && list->alloc->freeFn) \
             list->alloc->freeFn(list->alloc->ctx, list->items); \
-            list->items = NULL; \
-        } \
+        list->items = NULL; \
     } \
     \
     void typeName ## InsertRange(typeName* list, int32_t index, int32_t count, itemType values[]) \
@@ -152,9 +152,8 @@
         \
         if (list->count + count > list->capacity) \
         { \
-            if (!list->alloc) \
+            if (!shl__resizeArray((void**)&list->items, &list->capacity, list->count + count, sizeof(itemType), list->alloc)) \
                 return; \
-            shl__resizeArrayWith((void**)&list->items, &list->capacity, list->count + count, sizeof(itemType), list->alloc); \
         } \
         \
         memmove(list->items + index + count, list->items + index, (list->count - index) * sizeof(itemType)); \
@@ -275,12 +274,9 @@
     \
     itemType* typeName ## ToArray(typeName* list) \
     { \
-        if (!list->items || !list->alloc) \
-            return NULL; \
-        \
+        if (!list->items || !list->alloc || !list->alloc->mallocFn) return NULL; \
         itemType* array = (itemType*)list->alloc->mallocFn(list->alloc->ctx, list->count * sizeof(itemType)); \
-        if (array) \
-            memcpy(array, list->items, list->count * sizeof(itemType)); \
+        if (array) memcpy(array, list->items, list->count * sizeof(itemType)); \
         return array; \
     }
 

@@ -55,7 +55,7 @@
 #ifndef SHL_HEAP_H
 #define SHL_HEAP_H
 
-#include "shl_internal.h"
+#include "internal.h"
 
 #define shlDeclareBinaryHeap(typeName, itemType) \
     typedef struct \
@@ -129,6 +129,8 @@
     \
     void typeName ## Init(typeName* heap, shl_allocator_t* alloc, int32_t (*compareFn)(const itemType item1, const itemType item2)) \
     { \
+        if (!alloc) alloc = shl_heap_alloc(); \
+        if (!alloc->mallocFn) return; \
         heap->alloc     = alloc; \
         heap->compareFn = compareFn; \
         heap->capacity  = SHL__INITIAL_CAPACITY; \
@@ -139,11 +141,9 @@
     void typeName ## Free(typeName* heap) \
     { \
         heap->count = 0; \
-        if (heap->alloc && heap->items) \
-        { \
+        if (heap->items && heap->alloc && heap->alloc->freeFn) \
             heap->alloc->freeFn(heap->alloc->ctx, heap->items); \
-            heap->items = NULL; \
-        } \
+        heap->items = NULL; \
     } \
     \
     void typeName ## Push(typeName* heap, itemType value) \
@@ -151,8 +151,10 @@
         if (!heap->items) \
             return; \
         \
-        if (heap->count + 1 >= heap->capacity) \
-            shl__resizeArrayWith((void**)&heap->items, &heap->capacity, heap->count + 1, sizeof(itemType), heap->alloc); \
+        if (heap->count + 1 >= heap->capacity) { \
+            if (!shl__resizeArray((void**)&heap->items, &heap->capacity, heap->count + 1, sizeof(itemType), heap->alloc)) \
+                return; \
+        } \
         \
         int32_t index = heap->count; \
         heap->items[index] = value; \

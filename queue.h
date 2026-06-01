@@ -54,7 +54,7 @@
 #ifndef SHL_QUEUE_H
 #define SHL_QUEUE_H
 
-#include "shl_internal.h"
+#include "internal.h"
 
 #define shlDeclareQueue(typeName, itemType) \
     typedef struct \
@@ -79,6 +79,8 @@
 #define shlDefineQueue(typeName, itemType) \
     void typeName ## Init(typeName* queue, shl_allocator_t* alloc) \
     { \
+        if (!alloc) alloc = shl_heap_alloc(); \
+        if (!alloc->mallocFn) return; \
         queue->alloc    = alloc; \
         queue->capacity = SHL__INITIAL_CAPACITY; \
         queue->count    = 0; \
@@ -100,11 +102,11 @@
     void typeName ## Free(typeName* queue) \
     { \
         queue->count = 0; \
-        if (queue->alloc && queue->items) \
-        { \
+        queue->head  = 0; \
+        queue->tail  = 0; \
+        if (queue->items && queue->alloc && queue->alloc->freeFn) \
             queue->alloc->freeFn(queue->alloc->ctx, queue->items); \
-            queue->items = NULL; \
-        } \
+        queue->items = NULL; \
     } \
     \
     void typeName ## Push(typeName* queue, itemType value) \
@@ -114,9 +116,8 @@
         \
         if (queue->count == queue->capacity) \
         { \
-            if (!queue->alloc) \
+            if (!shl__resizeCircularArray((void**)&queue->items, &queue->capacity, &queue->head, &queue->tail, queue->count, sizeof(itemType), queue->alloc)) \
                 return; \
-            shl__resizeCircularArrayWith((void**)&queue->items, &queue->capacity, &queue->head, &queue->tail, queue->count, sizeof(itemType), queue->alloc); \
         } \
         \
         queue->items[queue->tail] = value; \

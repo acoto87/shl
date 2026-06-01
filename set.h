@@ -49,7 +49,7 @@
 #ifndef SHL_SET_H
 #define SHL_SET_H
 
-#include "shl_internal.h"
+#include "internal.h"
 
 #define shlDeclareSet(typeName, itemType) \
     typedef struct { \
@@ -78,16 +78,23 @@
     void typeName ## Clear(typeName* set);
 
 #define shlDefineSet(typeName, itemType) \
-    static void typeName ## __resize(typeName* set); \
-    \
-    static void typeName ## __resize(typeName* set) \
+    static bool typeName ## __resize(typeName* set) \
     { \
+        if (!set->alloc || !set->alloc->mallocFn) return false; \
         int32_t oldCapacity = set->capacity; \
         typeName ## __Entry__* old = set->entries; \
         \
         set->loadFactor = oldCapacity; \
         set->capacity = 1 << (32 - (--set->shift)); \
         set->entries = (typeName ## __Entry__*)set->alloc->mallocFn(set->alloc->ctx, (size_t)set->capacity * sizeof(typeName ## __Entry__)); \
+        if (!set->entries) \
+        { \
+            set->entries = old; \
+            set->capacity = oldCapacity; \
+            set->shift++; \
+            set->loadFactor = set->capacity; \
+            return false; \
+        } \
         memset(set->entries, 0, (size_t)set->capacity * sizeof(typeName ## __Entry__)); \
         set->count = 0; \
         \
@@ -96,11 +103,15 @@
             if (old[i].active) \
                 typeName ## Add(set, old[i].item); \
         } \
-        set->alloc->freeFn(set->alloc->ctx, old); \
+        if (set->alloc && set->alloc->freeFn) \
+            set->alloc->freeFn(set->alloc->ctx, old); \
+        return true; \
     } \
     \
     void typeName ## Init(typeName* set, shl_allocator_t* alloc, uint32_t (*hashFn)(const itemType item), bool (*equalsFn)(const itemType item1, const itemType item2)) \
     { \
+        if (!alloc) alloc = shl_heap_alloc(); \
+        if (!alloc->mallocFn) return; \
         set->alloc      = alloc; \
         set->hashFn     = hashFn; \
         set->equalsFn   = equalsFn; \
@@ -109,17 +120,15 @@
         set->loadFactor = SHL__INITIAL_HASH_LOAD_FACTOR; \
         set->count      = 0; \
         set->entries    = (typeName ## __Entry__*)alloc->mallocFn(alloc->ctx, (size_t)set->capacity * sizeof(typeName ## __Entry__)); \
-        memset(set->entries, 0, (size_t)set->capacity * sizeof(typeName ## __Entry__)); \
+        if (set->entries) memset(set->entries, 0, (size_t)set->capacity * sizeof(typeName ## __Entry__)); \
     } \
     \
     void typeName ## Free(typeName* set) \
     { \
         set->count = 0; \
-        if (set->alloc && set->entries) \
-        { \
+        if (set->entries && set->alloc && set->alloc->freeFn) \
             set->alloc->freeFn(set->alloc->ctx, set->entries); \
-            set->entries = NULL; \
-        } \
+        set->entries = NULL; \
     } \
     \
     bool typeName ## Add(typeName* set, itemType item) \
@@ -127,9 +136,10 @@
         if (!set->entries) \
             return false; \
         \
-        if (set->count == set->loadFactor) \
-            typeName ## __resize(set); \
-        \
+        if (set->count == set->loadFactor) {\
+            if (!typeName ## __resize(set)) \
+                return false; \
+        } \
         uint32_t hash; \
         int32_t index; \
         int32_t next; \
@@ -149,7 +159,8 @@
         next = shl__findEmptyBucket(set->entries, set->capacity, index, sizeof(typeName ## __Entry__), offsetof(typeName ## __Entry__, active)); \
         if (next < 0) \
         { \
-            typeName ## __resize(set); \
+            if (!typeName ## __resize(set)) \
+                return false; \
             return typeName ## Add(set, item); \
         } \
         if (index != next) \

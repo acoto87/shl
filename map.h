@@ -60,7 +60,7 @@
 #ifndef SHL_MAP_H
 #define SHL_MAP_H
 
-#include "shl_internal.h"
+#include "internal.h"
 
 #define shlDeclareMap(typeName, keyType, valueType) \
     typedef struct { \
@@ -91,9 +91,9 @@
     void typeName ## Clear(typeName* map);
 
 #define shlDefineMap(typeName, keyType, valueType) \
-    static void typeName ## __resize(typeName* map); \
+    static bool typeName ## __resize(typeName* map); \
     \
-    static void typeName ## __insert(typeName* map, keyType key, valueType value) \
+    static bool typeName ## __insert(typeName* map, keyType key, valueType value) \
     { \
         uint32_t hash; \
         int32_t index; \
@@ -105,7 +105,7 @@
             if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
                 map->entries[index].value = value; \
-                return; \
+                return true; \
             } \
             \
             index = map->entries[index].next; \
@@ -116,17 +116,14 @@
             if(map->entries[index].hash == hash && map->equalsFn(map->entries[index].key, key)) \
             { \
                 map->entries[index].value = value; \
-                return; \
+                return true; \
             } \
         } \
         \
         next = shl__findEmptyBucket(map->entries, map->capacity, index, sizeof(typeName ## __Entry__), offsetof(typeName ## __Entry__, active)); \
         if (next < 0) \
-        { \
-            typeName ## __resize(map); \
-            typeName ## __insert(map, key, value); \
-            return; \
-        } \
+            return typeName ## __resize(map) && typeName ## __insert(map, key, value); \
+        \
         if (index != next) \
             map->entries[index].next = next; \
         \
@@ -136,29 +133,51 @@
         map->entries[next].hash = hash; \
         map->entries[next].next = -1; \
         map->count++; \
+        return true; \
     } \
     \
-    static void typeName ## __resize(typeName* map) \
+    static bool typeName ## __resize(typeName* map) \
     { \
+        if (!map->alloc || !map->alloc->mallocFn) return false; \
         int32_t oldCapacity = map->capacity; \
         typeName ## __Entry__* old = map->entries; \
         \
         map->loadFactor = oldCapacity; \
         map->capacity = 1 << (32 - (--map->shift)); \
         map->entries = (typeName ## __Entry__*)map->alloc->mallocFn(map->alloc->ctx, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
+        if (!map->entries) \
+        { \
+            map->entries = old; \
+            map->capacity = oldCapacity; \
+            map->shift++; \
+            map->loadFactor = map->capacity; \
+            return false; \
+        } \
         memset(map->entries, 0, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
         map->count = 0; \
         \
         for(int32_t i = 0; i < oldCapacity; i++) \
         { \
-            if(old[i].active) \
-                typeName ## __insert(map, old[i].key, old[i].value); \
+            if(old[i].active && !typeName ## __insert(map, old[i].key, old[i].value)) \
+            { \
+                if (map->alloc && map->alloc->freeFn) \
+                    map->alloc->freeFn(map->alloc->ctx, map->entries); \
+                map->entries = old; \
+                map->capacity = oldCapacity; \
+                map->shift++; \
+                map->loadFactor = map->capacity; \
+                return false; \
+            } \
         } \
-        map->alloc->freeFn(map->alloc->ctx, old); \
+        if (map->alloc && map->alloc->freeFn) \
+            map->alloc->freeFn(map->alloc->ctx, old); \
+        return true; \
     } \
     \
     void typeName ## Init(typeName* map, shl_allocator_t* alloc, uint32_t (*hashFn)(keyType key), bool (*equalsFn)(keyType key1, keyType key2)) \
     { \
+        if (!alloc) alloc = shl_heap_alloc(); \
+        if (!alloc->mallocFn) return; \
         map->alloc     = alloc; \
         map->hashFn    = hashFn; \
         map->equalsFn  = equalsFn; \
@@ -167,17 +186,15 @@
         map->loadFactor = SHL__INITIAL_HASH_LOAD_FACTOR; \
         map->count     = 0; \
         map->entries   = (typeName ## __Entry__*)alloc->mallocFn(alloc->ctx, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
-        memset(map->entries, 0, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
+        if (map->entries) memset(map->entries, 0, (size_t)map->capacity * sizeof(typeName ## __Entry__)); \
     } \
     \
     void typeName ## Free(typeName* map) \
     { \
         map->count = 0; \
-        if (map->alloc && map->entries) \
-        { \
+        if (map->entries && map->alloc && map->alloc->freeFn) \
             map->alloc->freeFn(map->alloc->ctx, map->entries); \
-            map->entries = NULL; \
-        } \
+        map->entries = NULL; \
     } \
     \
     bool typeName ## Contains(typeName* map, keyType key) \
@@ -250,8 +267,10 @@
         if (!map->entries) \
             return; \
         \
-        if(map->count == map->loadFactor) \
-            typeName ## __resize(map); \
+        if(map->count == map->loadFactor) {\
+            if (!typeName ## __resize(map)) \
+                return; \
+        } \
         \
         typeName ## __insert(map, key, value); \
     } \

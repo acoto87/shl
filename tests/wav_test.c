@@ -30,12 +30,7 @@ static void* tracked_malloc(size_t sz) {
     g_alloc_count++;
     return malloc(sz);
 }
-static void* tracked_realloc(void* ptr, size_t sz) {
-    /* Count new allocations; do not touch counter for resize-in-place */
-    if (!ptr && sz > 0) g_alloc_count++;
-    if (ptr  && sz == 0) g_alloc_count--;
-    return realloc(ptr, sz);
-}
+
 static void tracked_free(void* ptr) {
     if (ptr) g_alloc_count--;
     free(ptr);
@@ -72,17 +67,6 @@ static void make_audio(mw_audio_buffer* audio,
     TEST_ASSERT_NOT_NULL(audio->data);
     for (uint32_t i = 0; i < audio->data_length; i++)
         audio->data[i] = (uint8_t)(i % 255);
-}
-
-/* Build a minimal in-memory WAV blob containing raw PCM `data` */
-static uint8_t* build_wav_blob(uint32_t channels, uint32_t rate,
-                               uint32_t bps, const uint8_t* pcm,
-                               uint32_t pcm_len, size_t* out_size)
-{
-    mw_audio_buffer audio = {
-        channels, rate, bps, pcm_len, (uint8_t*)(uintptr_t)pcm
-    };
-    return (uint8_t*)mw_write_memory(&audio, out_size);
 }
 
 /* =========================================================================

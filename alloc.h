@@ -73,7 +73,7 @@ static inline void* shl__heap_realloc_fn(void* ctx, void* ptr, size_t sz) { (voi
 static inline void  shl__heap_free_fn(void* ctx, void* ptr)               { (void)ctx; free(ptr); }
 
 /* Returns a pointer to a stable shl_allocator_t backed by the system heap
-   (malloc / realloc / free).  The returned pointer is valid for the lifetime
+   (malloc / realloc / free). The returned pointer is valid for the lifetime
    of the program and may be shared freely across collections and threads. */
 static inline shl_allocator_t* shl_heap_alloc(void)
 {
@@ -89,14 +89,9 @@ static inline shl_allocator_t* shl_heap_alloc(void)
 
 #ifdef SHL_MZ_H
 
-static inline void* shl__mz_malloc_fn(void* ctx, size_t sz)
-    { return mz_alloc((memzone_t*)ctx, sz); }
-
-static inline void* shl__mz_realloc_fn(void* ctx, void* ptr, size_t sz)
-    { return mz_realloc((memzone_t*)ctx, ptr, sz); }
-
-static inline void shl__mz_free_fn(void* ctx, void* ptr)
-    { mz_free((memzone_t*)ctx, ptr); }
+static inline void* shl__mz_malloc_fn(void* ctx, size_t sz)             { return mz_alloc((memzone_t*)ctx, sz); }
+static inline void* shl__mz_realloc_fn(void* ctx, void* ptr, size_t sz) { return mz_realloc((memzone_t*)ctx, ptr, sz); }
+static inline void shl__mz_free_fn(void* ctx, void* ptr)                { mz_free((memzone_t*)ctx, ptr); }
 
 /* Returns an shl_allocator_t value backed by zone.
    Store the returned value and pass its address to collection Init functions. */
