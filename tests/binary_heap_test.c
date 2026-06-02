@@ -34,31 +34,50 @@ static char* makeSizedString(int length)
     return text;
 }
 
-void test_heap_returns_default_for_empty_heap(void)
+void test_heap_returns_zero_for_empty_heap(void)
 {
     IntHeap heap;
-    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
+    IntHeapInit(&heap, shl_heap_alloc(), compareInt);
 
-    TEST_ASSERT_EQUAL_INT(-1, IntHeapPeek(&heap));
-    TEST_ASSERT_EQUAL_INT(-1, IntHeapPop(&heap));
+    TEST_ASSERT_EQUAL_INT(0, IntHeapPeek(&heap));
+    TEST_ASSERT_EQUAL_INT(0, IntHeapPop(&heap));
 
     IntHeapFree(&heap);
+}
+
+void test_heap_init_with_null_compare_resets_to_safe_empty_state(void)
+{
+    IntHeap heap;
+    memset(&heap, 0xA5, sizeof(heap));
+
+    IntHeapInit(&heap, shl_heap_alloc(), NULL);
+
+    TEST_ASSERT_EQUAL_INT(0, heap.count);
+    TEST_ASSERT_EQUAL_INT(0, heap.capacity);
+    TEST_ASSERT_NULL(heap.alloc);
+    TEST_ASSERT_NULL(heap.compareFn);
+    TEST_ASSERT_NULL(heap.items);
+
+    IntHeapPush(&heap, 42);
+    TEST_ASSERT_EQUAL_INT(0, heap.count);
+
+    IntHeapFree(&heap);
+    TEST_ASSERT_EQUAL_INT(0, heap.count);
+    TEST_ASSERT_NULL(heap.items);
 }
 
 void test_heap_peek_tracks_minimum_value(void)
 {
     const int values[] = { 7, 3, 9, 1, 5 };
     IntHeap heap;
-    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
+    IntHeapInit(&heap, shl_heap_alloc(), compareInt);
 
     for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); i++)
-    {
         IntHeapPush(&heap, values[i]);
-    }
 
     TEST_ASSERT_EQUAL_INT(1, IntHeapPeek(&heap));
-    TEST_ASSERT_TRUE(IntHeapContains(&heap, 7));
-    TEST_ASSERT_TRUE(IntHeapIndexOf(&heap, 9) >= 0);
+    TEST_ASSERT_TRUE(IntHeapContains(&heap, 7, equalsInt));
+    TEST_ASSERT_TRUE(IntHeapIndexOf(&heap, 9, equalsInt) >= 0);
     IntHeapFree(&heap);
 }
 
@@ -66,12 +85,10 @@ void test_heap_pop_returns_sorted_values(void)
 {
     const int values[] = { 5, 2, 8, 1, 4, 3 };
     IntHeap heap;
-    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
+    IntHeapInit(&heap, shl_heap_alloc(), compareInt);
 
     for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); i++)
-    {
         IntHeapPush(&heap, values[i]);
-    }
 
     int previous = IntHeapPop(&heap);
     while (heap.count > 0)
@@ -87,19 +104,19 @@ void test_heap_pop_returns_sorted_values(void)
 void test_heap_update_reorders_entry_both_directions(void)
 {
     IntHeap heap;
-    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
+    IntHeapInit(&heap, shl_heap_alloc(), compareInt);
 
     IntHeapPush(&heap, 10);
     IntHeapPush(&heap, 20);
     IntHeapPush(&heap, 30);
     IntHeapPush(&heap, 40);
 
-    int index = IntHeapIndexOf(&heap, 30);
+    int index = IntHeapIndexOf(&heap, 30, equalsInt);
     TEST_ASSERT_TRUE(index >= 0);
     IntHeapUpdate(&heap, index, 5);
     TEST_ASSERT_EQUAL_INT(5, IntHeapPeek(&heap));
 
-    index = IntHeapIndexOf(&heap, 10);
+    index = IntHeapIndexOf(&heap, 10, equalsInt);
     TEST_ASSERT_TRUE(index >= 0);
     IntHeapUpdate(&heap, index, 50);
 
@@ -117,16 +134,14 @@ void test_heap_update_reorders_entry_both_directions(void)
 void test_heap_stress_preserves_sorted_pop_sequence(void)
 {
     IntHeap heap;
-    IntHeapInit(&heap, (IntHeapOptions){ .defaultValue = -1, .equalsFn = equalsInt, .compareFn = compareInt });
+    IntHeapInit(&heap, shl_heap_alloc(), compareInt);
 
     int expectedMin = INT_MAX;
     for (int i = 0; i < SHL_TEST_STRESS_COUNT; i++)
     {
         int value = (i * 73) % SHL_TEST_STRESS_COUNT;
         if (value < expectedMin)
-        {
             expectedMin = value;
-        }
         IntHeapPush(&heap, value);
     }
 
@@ -147,12 +162,10 @@ void test_string_heap_orders_by_string_length(void)
 {
     const int lengths[] = { 8, 3, 5, 1, 6 };
     StringHeap heap;
-    StringHeapInit(&heap, (StringHeapOptions){ .defaultValue = NULL, .compareFn = compareStringLength, .freeFn = NULL });
+    StringHeapInit(&heap, shl_heap_alloc(), compareStringLength);
 
     for (size_t i = 0; i < sizeof(lengths) / sizeof(lengths[0]); i++)
-    {
         StringHeapPush(&heap, makeSizedString(lengths[i]));
-    }
 
     TEST_ASSERT_EQUAL_size_t(1u, strlen(StringHeapPeek(&heap)));
 
@@ -171,6 +184,24 @@ void test_string_heap_orders_by_string_length(void)
     StringHeapFree(&heap);
 }
 
+/* Clear resets count to zero.  The caller is responsible for freeing items
+   before calling Clear; the heap itself never calls item destructors. */
+void test_heap_clear_resets_count(void)
+{
+    IntHeap heap;
+    IntHeapInit(&heap, shl_heap_alloc(), compareInt);
+
+    for (int i = 0; i < 16; i++)
+        IntHeapPush(&heap, i);
+
+    TEST_ASSERT_EQUAL_INT(16, heap.count);
+    IntHeapClear(&heap);
+    TEST_ASSERT_EQUAL_INT(0, heap.count);
+    TEST_ASSERT_EQUAL_INT(0, IntHeapPeek(&heap));
+
+    IntHeapFree(&heap);
+}
+
 void setUp(void)
 {
 }
@@ -182,11 +213,13 @@ void tearDown(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_heap_returns_default_for_empty_heap);
+    RUN_TEST(test_heap_returns_zero_for_empty_heap);
+    RUN_TEST(test_heap_init_with_null_compare_resets_to_safe_empty_state);
     RUN_TEST(test_heap_peek_tracks_minimum_value);
     RUN_TEST(test_heap_pop_returns_sorted_values);
     RUN_TEST(test_heap_update_reorders_entry_both_directions);
     RUN_TEST(test_heap_stress_preserves_sorted_pop_sequence);
     RUN_TEST(test_string_heap_orders_by_string_length);
+    RUN_TEST(test_heap_clear_resets_count);
     return UNITY_END();
 }

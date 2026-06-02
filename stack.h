@@ -30,111 +30,126 @@
     Declare a stack type with shlDeclareStack(name, type), then define it once
     with shlDefineStack(name, type) in a C source file.
 
-    CUSTOMISATION
-    Provide a default value for empty reads, an equality function for
-    Contains, and a free function if stored values own resources. Values are
-    stored by copy in a dynamically resized array.
+    ALLOCATION
+    Pass an shl_allocator_t* to Init to control where the items buffer lives.
+    Use shl_heap_alloc() for the default system heap.  To use a memzone_t,
+    include memzone.h before this header and call shl_zone_alloc(zone).
 
-    NOTES
-    Push appends to the top of the stack, Pop removes the most recent item,
-    and Peek reads without removing. Call Free when the stack is no longer
-    needed.
+    For a fixed-capacity stack with no heap involvement at all, use InitFixed
+    and supply a caller-owned buffer.  Free is a safe no-op on fixed stacks.
+
+    ITEM OWNERSHIP
+    The stack stores values by copy and does not manage the lifecycle of
+    items.  The caller is responsible for freeing any resources owned by
+    items before calling Clear or Free.
+
+    SEARCH
+    Contains requires an explicit equality function at the call site rather
+    than storing one in the stack struct.
+
+    OUT-OF-RANGE READS
+    Peek and Pop return a zero-initialised value when the stack is empty.
 */
 
 #ifndef SHL_STACK_H
 #define SHL_STACK_H
 
-#include "shl_internal.h"
+#include "internal.h"
 
 #define shlDeclareStack(typeName, itemType) \
     typedef struct \
     { \
-        itemType defaultValue; \
-        bool (*equalsFn)(const itemType item1, const itemType item2); \
-        void (*freeFn)(itemType item); \
-    } typeName ## Options; \
-    \
-    typedef struct \
-    { \
         int32_t count; \
         int32_t capacity; \
-        bool (*equalsFn)(const itemType item1, const itemType item2); \
-        void (*freeFn)(itemType item); \
-        itemType defaultValue; \
-        itemType *items; \
+        shl_allocator_t* alloc; \
+        itemType* items; \
     } typeName; \
     \
-    void typeName ## Init(typeName *stack, typeName ## Options options); \
-    void typeName ## Free(typeName *stack); \
-    void typeName ## Push(typeName *stack, itemType value); \
-    bool typeName ## Contains(typeName *stack, itemType value); \
-    itemType typeName ## Peek(typeName *stack); \
-    itemType typeName ## Pop(typeName *stack); \
-    void typeName ## Clear(typeName *stack);
+    void typeName ## Init(typeName* stack, shl_allocator_t* alloc); \
+    void typeName ## InitFixed(typeName* stack, itemType* buffer, int32_t capacity); \
+    void typeName ## Free(typeName* stack); \
+    void typeName ## Push(typeName* stack, itemType value); \
+    itemType typeName ## Peek(typeName* stack); \
+    itemType typeName ## Pop(typeName* stack); \
+    bool typeName ## Contains(typeName* stack, itemType value, bool (*equalsFn)(const itemType, const itemType)); \
+    void typeName ## Clear(typeName* stack);
 
 #define shlDefineStack(typeName, itemType) \
-    void typeName ## Init(typeName *stack, typeName ## Options options) \
+    void typeName ## Init(typeName* stack, shl_allocator_t* alloc) \
     { \
-        stack->defaultValue = options.defaultValue; \
-        stack->equalsFn = options.equalsFn; \
-        stack->freeFn = options.freeFn; \
+        *stack = (typeName){ 0 }; \
+        if (!alloc) alloc = shl_heap_alloc(); \
+        if (!alloc || !alloc->mallocFn) return; \
+        stack->alloc    = alloc; \
         stack->capacity = SHL__INITIAL_CAPACITY; \
-        stack->count = 0; \
-        stack->items = (itemType *)SHL_CALLOC((size_t)stack->capacity, sizeof(itemType)); \
+        stack->count    = 0; \
+        stack->items    = (itemType*)alloc->mallocFn(alloc->ctx, (size_t)stack->capacity * sizeof(itemType)); \
     } \
     \
-    void typeName ## Free(typeName *stack) \
+    void typeName ## InitFixed(typeName* stack, itemType* buffer, int32_t capacity) \
     { \
-        if (!stack->items) \
-            return; \
-        \
-        typeName ## Clear(stack); \
-        \
-        SHL_FREE(stack->items); \
-        stack->items = 0; \
+        stack->alloc    = NULL; \
+        stack->capacity = capacity; \
+        stack->count    = 0; \
+        stack->items    = buffer; \
     } \
     \
-    void typeName ## Push(typeName *stack, itemType value) \
+    void typeName ## Free(typeName* stack) \
+    { \
+        stack->count = 0; \
+        if (stack->items && stack->alloc && stack->alloc->freeFn) \
+            stack->alloc->freeFn(stack->alloc->ctx, stack->items); \
+        stack->items = NULL; \
+    } \
+    \
+    void typeName ## Push(typeName* stack, itemType value) \
     { \
         if (!stack->items) \
             return; \
         \
         if (stack->count == stack->capacity) \
-            shl__resizeArray((void**)&stack->items, &stack->capacity, stack->count + 1, sizeof(itemType)); \
+        { \
+            if (!shl__resizeArray((void**)&stack->items, &stack->capacity, stack->count + 1, sizeof(itemType), stack->alloc)) \
+                return; \
+        } \
         \
         stack->items[stack->count] = value; \
         stack->count++; \
     } \
     \
-    itemType typeName ## Peek(typeName *stack) \
+    itemType typeName ## Peek(typeName* stack) \
     { \
         if (!stack->items || stack->count == 0) \
-            return stack->defaultValue; \
-        \
+        { \
+            itemType zero; \
+            memset(&zero, 0, sizeof(itemType)); \
+            return zero; \
+        } \
         return stack->items[stack->count - 1]; \
     } \
     \
-    itemType typeName ## Pop(typeName *stack) \
+    itemType typeName ## Pop(typeName* stack) \
     { \
         if (!stack->items || stack->count == 0) \
-            return stack->defaultValue; \
+        { \
+            itemType zero; \
+            memset(&zero, 0, sizeof(itemType)); \
+            return zero; \
+        } \
         \
         itemType item = stack->items[stack->count - 1]; \
         stack->count--; \
         return item; \
     } \
     \
-    bool typeName ## Contains(typeName *stack, itemType value) \
+    bool typeName ## Contains(typeName* stack, itemType value, bool (*equalsFn)(const itemType, const itemType)) \
     { \
-        if (!stack->items) \
+        if (!stack->items || !equalsFn) \
             return false; \
         \
-        if (!stack->equalsFn) \
-            return false; \
-        \
-        for(int32_t i = 0; i < stack->count; i++) \
+        for (int32_t i = 0; i < stack->count; i++) \
         { \
-            if (stack->equalsFn(stack->items[i], value)) \
+            if (equalsFn(stack->items[i], value)) \
                 return true; \
         } \
         \
@@ -143,15 +158,6 @@
     \
     void typeName ## Clear(typeName* stack) \
     { \
-        if (!stack->items) \
-            return; \
-        \
-        if (stack->freeFn) \
-        { \
-            for(int32_t i = 0; i < stack->count; i++) \
-                stack->freeFn(stack->items[i]); \
-        } \
-        \
         stack->count = 0; \
     }
 
