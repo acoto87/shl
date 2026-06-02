@@ -57,11 +57,6 @@ enum
    Helpers
    ---------------------------------------------------------------------- */
 
-static IntListOptions make_opts(void)
-{
-    return (IntListOptions){ .defaultValue = -1, .equalsFn = int_eq };
-}
-
 /* Fill list with n pseudo-random positive integers using a simple LCG.
    The sequence is reproducible and contains no negative values. */
 static void list_fill_random(IntList* list, int32_t n)
@@ -84,7 +79,7 @@ struct ListMedium { IntList list; };
 
 UBENCH_F_SETUP(ListMedium)
 {
-    IntListInit(&ubench_fixture->list, make_opts());
+    IntListInit(&ubench_fixture->list, NULL);
     list_fill_random(&ubench_fixture->list, N_MEDIUM);
 }
 
@@ -104,7 +99,7 @@ UBENCH_EX(List, Init_Free)
     for (int w = 0; w < N_WARMUP; w++)
     {
         IntList list;
-        IntListInit(&list, make_opts());
+        IntListInit(&list, NULL);
         IntListFree(&list);
     }
 
@@ -114,7 +109,7 @@ UBENCH_EX(List, Init_Free)
         for (int j = 0; j < N_BATCH; j++)
         {
             IntList list;
-            IntListInit(&list, make_opts());
+            IntListInit(&list, NULL);
             IntListFree(&list);
             UBENCH_DO_NOTHING(&list);
         }
@@ -131,7 +126,7 @@ UBENCH_EX(List, Init_Free)
 UBENCH_EX(List, Add_1024)
 {
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up: pre-fill capacity so no realloc occurs in the timed loop */
     for (int w = 0; w < 8; w++)
@@ -163,7 +158,7 @@ UBENCH_EX(List, AddRange_1024)
     for (int i = 0; i < N_MEDIUM; i++) src[i] = i;
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up */
     for (int w = 0; w < 8; w++)
@@ -190,7 +185,7 @@ UBENCH_EX(List, AddRange_1024)
 UBENCH_EX(List, Insert_front_1024)
 {
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up */
     for (int w = 0; w < 4; w++)
@@ -215,7 +210,7 @@ UBENCH_EX(List, Insert_front_1024)
 UBENCH_EX(List, Insert_middle_1024)
 {
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up */
     for (int w = 0; w < 4; w++)
@@ -248,7 +243,7 @@ UBENCH_EX(List, InsertRange_front)
     for (int i = 0; i < N_RANGE; i++) src[i] = i;
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
 
     /* Warm up */
@@ -274,7 +269,7 @@ UBENCH_EX(List, InsertRange_middle)
     for (int i = 0; i < N_RANGE; i++) src[i] = i;
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
 
     /* Warm up */
@@ -306,13 +301,13 @@ UBENCH_EX_F(ListMedium, IndexOf_hit_end)
     /* Warm up: prime branch predictor and data caches */
     for (int w = 0; w < 8; w++)
     {
-        int32_t r = IntListIndexOf(&ubench_fixture->list, target);
+        int32_t r = IntListIndexOf(&ubench_fixture->list, target, int_eq);
         (void)r;
     }
 
     UBENCH_DO_BENCHMARK()
     {
-        int32_t result = IntListIndexOf(&ubench_fixture->list, target);
+        int32_t result = IntListIndexOf(&ubench_fixture->list, target, int_eq);
         UBENCH_DO_NOTHING(&result);
     }
 }
@@ -323,13 +318,13 @@ UBENCH_EX_F(ListMedium, IndexOf_miss)
     /* Warm up */
     for (int w = 0; w < 8; w++)
     {
-        int32_t r = IntListIndexOf(&ubench_fixture->list, -1);
+        int32_t r = IntListIndexOf(&ubench_fixture->list, -1, int_eq);
         (void)r;
     }
 
     UBENCH_DO_BENCHMARK()
     {
-        int32_t result = IntListIndexOf(&ubench_fixture->list, -1);
+        int32_t result = IntListIndexOf(&ubench_fixture->list, -1, int_eq);
         UBENCH_DO_NOTHING(&result);
     }
 }
@@ -345,13 +340,13 @@ UBENCH_EX_F(ListMedium, Contains_hit_middle)
     /* Warm up */
     for (int w = 0; w < 8; w++)
     {
-        bool r = IntListContains(&ubench_fixture->list, target);
+        bool r = IntListContains(&ubench_fixture->list, target, int_eq);
         (void)r;
     }
 
     UBENCH_DO_BENCHMARK()
     {
-        bool result = IntListContains(&ubench_fixture->list, target);
+        bool result = IntListContains(&ubench_fixture->list, target, int_eq);
         UBENCH_DO_NOTHING(&result);
     }
 }
@@ -361,13 +356,13 @@ UBENCH_EX_F(ListMedium, Contains_miss)
     /* Warm up */
     for (int w = 0; w < 8; w++)
     {
-        bool r = IntListContains(&ubench_fixture->list, -1);
+        bool r = IntListContains(&ubench_fixture->list, -1, int_eq);
         (void)r;
     }
 
     UBENCH_DO_BENCHMARK()
     {
-        bool result = IntListContains(&ubench_fixture->list, -1);
+        bool result = IntListContains(&ubench_fixture->list, -1, int_eq);
         UBENCH_DO_NOTHING(&result);
     }
 }
@@ -420,7 +415,7 @@ UBENCH_EX_F(ListMedium, Set_middle)
 UBENCH_EX(List, RemoveAt_front)
 {
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
 
     /* Warm up */
@@ -444,7 +439,7 @@ UBENCH_EX(List, RemoveAt_front)
 UBENCH_EX(List, RemoveAt_back)
 {
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
 
     /* Warm up */
@@ -472,20 +467,20 @@ UBENCH_EX(List, RemoveAt_back)
 UBENCH_EX(List, Remove_value_middle)
 {
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
     int target = list.items[N_MEDIUM / 2];
 
     /* Warm up */
     for (int w = 0; w < 8; w++)
     {
-        IntListRemove(&list, target);
+        IntListRemove(&list, target, int_eq);
         IntListInsert(&list, N_MEDIUM / 2, target);
     }
 
     UBENCH_DO_BENCHMARK()
     {
-        IntListRemove(&list, target);
+        IntListRemove(&list, target, int_eq);
         IntListInsert(&list, N_MEDIUM / 2, target);
         UBENCH_DO_NOTHING(&list);
     }
@@ -500,7 +495,7 @@ UBENCH_EX(List, RemoveAtRange_front)
     for (int i = 0; i < N_RANGE; i++) src[i] = i;
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
 
     /* Warm up */
@@ -532,7 +527,7 @@ UBENCH_EX(List, Clear_1024)
     for (int i = 0; i < N_MEDIUM; i++) src[i] = i;
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up */
     for (int w = 0; w < 8; w++)
@@ -592,7 +587,7 @@ UBENCH_EX(List, Sort_1024)
     }
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up */
     for (int w = 0; w < 4; w++)
@@ -626,7 +621,7 @@ UBENCH_EX(List, Sort_16384)
     }
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up (2 passes — body is heavy, keep overhead low) */
     for (int w = 0; w < 2; w++)
@@ -708,7 +703,7 @@ UBENCH_EX(List, Integration_build_sort_search)
     }
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up */
     for (int w = 0; w < 4; w++)
@@ -724,7 +719,7 @@ UBENCH_EX(List, Integration_build_sort_search)
         IntListAddRange(&list, N_MEDIUM, src);
         IntListSort(&list, int_cmp, NULL);
         int mid = list.items[N_MEDIUM / 2];
-        int32_t result = IntListIndexOf(&list, mid);
+        int32_t result = IntListIndexOf(&list, mid, int_eq);
         UBENCH_DO_NOTHING(&result);
     }
 
@@ -739,7 +734,7 @@ UBENCH_EX(List, Integration_build_sort_search)
 UBENCH_EX(List, Integration_fifo_pattern)
 {
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
 
     int next_val = 0;
@@ -773,7 +768,7 @@ UBENCH_EX(List, Integration_batch_insert_remove)
     for (int i = 0; i < N_RANGE; i++) src[i] = i;
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
     list_fill_random(&list, N_MEDIUM);
 
     /* Warm up */
@@ -804,7 +799,7 @@ UBENCH_EX(List, Integration_reverse_sort)
     for (int i = 0; i < N_MEDIUM; i++) src[i] = i; /* ascending */
 
     IntList list;
-    IntListInit(&list, make_opts());
+    IntListInit(&list, NULL);
 
     /* Warm up */
     for (int w = 0; w < 4; w++)
