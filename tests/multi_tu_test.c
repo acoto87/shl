@@ -221,7 +221,7 @@ static void test_multi_tu_flic_open_missing_in_test_tu(void)
 {
     /* Same check performed directly in the implementation TU. */
     Flic flic;
-    TEST_ASSERT_FALSE(flicOpen(&flic, "no_such_file_for_multi_tu.flc"));
+    TEST_ASSERT_FALSE(flic_open(&flic, "no_such_file_for_multi_tu.flc"));
 }
 
 /* =========================================================================

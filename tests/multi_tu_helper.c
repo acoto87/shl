@@ -115,5 +115,5 @@ bool helper_flic_open_missing(void)
 {
     Flic flic;
     /* Attempting to open a file that does not exist must return false. */
-    return !flicOpen(&flic, "file_that_does_not_exist_for_multi_tu_test.flc");
+    return !flic_open(&flic, "file_that_does_not_exist_for_multi_tu_test.flc");
 }
