@@ -39,6 +39,7 @@ static const TestTarget TestTargets[] =
     { "tests/wstr_test.c",            "wstr_test",            NULL },
     { "tests/xmi2mid_test.c",         "xmi2mid_test",         NULL },
     { "tests/multi_tu_test.c",        "multi_tu_test",        "tests/multi_tu_helper.c" },
+    { "tests/fixed_point_test.c",     "fixed_point_test",     NULL },
 };
 
 static const TestTarget* find_test_target(const char* name)
@@ -67,11 +68,12 @@ typedef struct
 
 static const BenchTarget BenchTargets[] =
 {
-    { "benchmarks/list_bench.c",    "list_bench"    },
-    { "benchmarks/memzone_bench.c", "memzone_bench" },
-    { "benchmarks/wav_bench.c",     "wav_bench"     },
-    { "benchmarks/voc_bench.c",     "voc_bench"     },
-    { "benchmarks/xmi2mid_bench.c", "xmi2mid_bench" },
+    { "benchmarks/list_bench.c",         "list_bench"         },
+    { "benchmarks/memzone_bench.c",      "memzone_bench"      },
+    { "benchmarks/wav_bench.c",          "wav_bench"          },
+    { "benchmarks/voc_bench.c",          "voc_bench"          },
+    { "benchmarks/xmi2mid_bench.c",      "xmi2mid_bench"      },
+    { "benchmarks/fixed_point_bench.c", "fixed_point_bench" },
 };
 
 static const BenchTarget* find_bench_target(const char* name)
