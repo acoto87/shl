@@ -7,7 +7,7 @@
 #include <limits.h>
 
 #define FIXED_POINT_IMPLEMENTATION
-#include "../fixed-point.h"
+#include "../fixed_point.h"
 #include "test_common.h"
 
 /* -------------------------------------------------------------------------
@@ -23,6 +23,20 @@
 
 /* Convert a float to fp32, run the operation, convert back for comparison. */
 static float fp32_to_f(fp32 v) { return fp_toFloat(v); }
+
+static int32_t test_ratio_expected(int32_t numerator, int32_t denominator)
+{
+    int64_t scaled = (int64_t)numerator * FP_SCALE;
+    bool negative = (scaled < 0) != (denominator < 0);
+    uint64_t magnitude = scaled < 0 ? UINT64_C(0) - (uint64_t)scaled : (uint64_t)scaled;
+    uint64_t divisor = denominator < 0 ? UINT64_C(0) - (uint64_t)(int64_t)denominator : (uint64_t)denominator;
+    uint64_t quotient = magnitude / divisor;
+    uint64_t remainder = magnitude % divisor;
+    if (remainder >= divisor - remainder) {
+        ++quotient;
+    }
+    return negative ? -(int32_t)quotient : (int32_t)quotient;
+}
 
 /* =========================================================================
    Conversions
@@ -90,11 +104,25 @@ void test_toInt_truncates_negative_fraction_toward_zero(void)
     TEST_ASSERT_EQUAL_INT32(-1, fp_toInt(-(FP_SCALE + 1)));
 }
 
-void test_fromRatio_rounds_nearest_away_from_zero(void)
+void test_fromRatio_rounds_nearest(void)
 {
-    TEST_ASSERT_EQUAL_INT32(26, fp_fromRatio(1, 10));
-    TEST_ASSERT_EQUAL_INT32(-26, fp_fromRatio(-1, 10));
-    TEST_ASSERT_EQUAL_INT32(FP_SCALE / 3, fp_fromRatio(1, 3));
+    TEST_ASSERT_EQUAL_INT32(test_ratio_expected(1, 10), fp_fromRatio(1, 10));
+    TEST_ASSERT_EQUAL_INT32(test_ratio_expected(-1, 10), fp_fromRatio(-1, 10));
+    TEST_ASSERT_EQUAL_INT32(test_ratio_expected(1, 3), fp_fromRatio(1, 3));
+    TEST_ASSERT_EQUAL_INT32(test_ratio_expected(-7, 11), fp_fromRatio(-7, 11));
+}
+
+void test_fromRatio_half_raw_unit_rounds_away_from_zero(void)
+{
+    /*
+     * 1 / (2 * FP_SCALE), converted to fixed point:
+     *     1 * FP_SCALE / (2 * FP_SCALE) = 0.5 raw units
+     */
+    int32_t denominator = FP_SCALE * 2;
+    TEST_ASSERT_EQUAL_INT32(1, fp_fromRatio(1, denominator));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_fromRatio(-1, denominator));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_fromRatio(1, -denominator));
+    TEST_ASSERT_EQUAL_INT32(1, fp_fromRatio(-1, -denominator));
 }
 
 void test_raw_conversion_is_exact(void)
@@ -1067,7 +1095,8 @@ int main(void)
     RUN_TEST(test_fromFloat_negative_fraction);
     RUN_TEST(test_toFloat_round_trip);
     RUN_TEST(test_toInt_truncates_negative_fraction_toward_zero);
-    RUN_TEST(test_fromRatio_rounds_nearest_away_from_zero);
+    RUN_TEST(test_fromRatio_rounds_nearest);
+    RUN_TEST(test_fromRatio_half_raw_unit_rounds_away_from_zero);
     RUN_TEST(test_raw_conversion_is_exact);
     RUN_TEST(test_fromFloat_half_ulp_ties_away_from_zero);
     RUN_TEST(test_fromFloat_special_values);

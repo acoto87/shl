@@ -1,5 +1,5 @@
 /*
-    fixed-point.h - acoto87 (acoto87@gmail.com)
+    fixed_point.h - acoto87 (acoto87@gmail.com)
 
     MIT License
 
@@ -36,11 +36,11 @@
     before including this header to emit the function bodies:
 
         #define FIXED_POINT_IMPLEMENTATION
-        #include "fixed-point.h"
+        #include "fixed_point.h"
 
     In all other files, include the header normally:
 
-        #include "fixed-point.h"
+        #include "fixed_point.h"
 
     STATIC / INLINE MODE
     If you prefer zero-overhead inlining rather than a single translation unit,
@@ -80,11 +80,13 @@
  * ========================================================================= */
 
 #ifndef FP_FRAC_BITS
-    #define FP_FRAC_BITS 8
+    #define FP_FRAC_BITS 12
 #endif
 
-#if FP_FRAC_BITS < 1 || FP_FRAC_BITS > 30
-    #error "FP_FRAC_BITS must be between 1 and 30"
+#if FP_FRAC_BITS != 8  && \
+    FP_FRAC_BITS != 12 && \
+    FP_FRAC_BITS != 16
+    #error "Unsupported FP_FRAC_BITS. Supported values: 8, 12, 16."
 #endif
 
 #define FP_SCALE (INT32_C(1) << FP_FRAC_BITS)

@@ -1,6 +1,6 @@
 # Fixed-point math library
 
-`fixed-point.h` provides deterministic 32-bit signed fixed-point arithmetic for simulations and other applications that require predictable integer-based math.
+`fixed_point.h` provides deterministic 32-bit signed fixed-point arithmetic for simulations and other applications that require predictable integer-based math.
 
 The default format uses 8 fractional bits, giving a signed 24.8 layout with a scale factor of 256:
 
@@ -9,24 +9,24 @@ fixed-point value = raw integer / FP_SCALE
 FP_SCALE          = 1 << FP_FRAC_BITS
 ```
 
-Define `FIXED_POINT_IMPLEMENTATION` in exactly one C or C++ translation unit before including `fixed-point.h` to compile the implementation.
+Define `FIXED_POINT_IMPLEMENTATION` in exactly one C or C++ translation unit before including `fixed_point.h` to compile the implementation.
 
 ```c
 #define FIXED_POINT_IMPLEMENTATION
-#include "fixed-point.h"
+#include "fixed_point.h"
 ```
 
 In all other translation units, include the header normally:
 
 ```c
-#include "fixed-point.h"
+#include "fixed_point.h"
 ```
 
 For header-only static inline mode, define `FIXED_POINT_STATIC` before including the header:
 
 ```c
 #define FIXED_POINT_STATIC
-#include "fixed-point.h"
+#include "fixed_point.h"
 ```
 
 ## Precision configuration
@@ -36,7 +36,7 @@ Define `FP_FRAC_BITS` before including the header to choose the number of fracti
 ```c
 #define FP_FRAC_BITS 16
 #define FIXED_POINT_IMPLEMENTATION
-#include "fixed-point.h"
+#include "fixed_point.h"
 ```
 
 Every translation unit in the program must use the same `FP_FRAC_BITS` value.
@@ -176,7 +176,7 @@ A replay or state hash should also record the chosen `FP_FRAC_BITS` configuratio
 #include <stdio.h>
 
 #define FIXED_POINT_IMPLEMENTATION
-#include "fixed-point.h"
+#include "fixed_point.h"
 
 int main(void)
 {

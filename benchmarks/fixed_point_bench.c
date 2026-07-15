@@ -1,5 +1,5 @@
 /*
-    benchmarks/fixed_point_bench.c — benchmarks for fixed-point.h using ubench.h
+    benchmarks/fixed_point_bench.c — benchmarks for fixed_point.h using ubench.h
 
     Covers every public API function plus several integration scenarios that
     reflect real RTS game-engine hot paths (physics update, pathfinding cost
@@ -25,7 +25,7 @@
 #endif
 
 #define FIXED_POINT_STATIC
-#include "../fixed-point.h"
+#include "../fixed_point.h"
 #include "ubench.h"
 
 /* -------------------------------------------------------------------------

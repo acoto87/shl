@@ -42,10 +42,9 @@ static const TestTarget TestTargets[] =
     { "tests/xmi2mid_test.c",       "xmi2mid_test",         NULL,                      NULL                },
     { "tests/multi_tu_test.c",      "multi_tu_test",        "tests/multi_tu_helper.c", NULL                },
     { "tests/fixed_point_test.c",   "fixed_point_test",     NULL,                      NULL                },
-    { "tests/fixed_point_test.c",   "fixed_point_q1_test",  NULL,                      "-DFP_FRAC_BITS=1"  },
     { "tests/fixed_point_test.c",   "fixed_point_q8_test",  NULL,                      "-DFP_FRAC_BITS=8"  },
+    { "tests/fixed_point_test.c",   "fixed_point_q12_test", NULL,                      "-DFP_FRAC_BITS=12" },
     { "tests/fixed_point_test.c",   "fixed_point_q16_test", NULL,                      "-DFP_FRAC_BITS=16" },
-    { "tests/fixed_point_test.c",   "fixed_point_q30_test", NULL,                      "-DFP_FRAC_BITS=30" },
 };
 
 static const TestTarget* find_test_target(const char* name)
