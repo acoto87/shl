@@ -102,7 +102,7 @@ static const BenchTarget* find_bench_target(const char* name)
 static void print_usage(const char* program)
 {
     nob_log(NOB_INFO, "Usage: %s [build|test|asan|ubsan|valgrind|bench] [all|name]", program);
-    nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test, %s ubsan fixed_point_test, %s bench list_bench", program, program, program, program);
+    nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test, %s ubsan fixed_point_test, %s bench list_bench", program, program, program, program, program);
 }
 
 static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
