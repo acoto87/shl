@@ -479,7 +479,7 @@ void test_rounding_at_raw_boundaries(void)
 }
 
 /* =========================================================================
-   Faction
+   Fraction
    ========================================================================= */
 
 void test_frac_uses_mathematical_fraction(void)
