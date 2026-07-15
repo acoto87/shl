@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #define FIXED_POINT_IMPLEMENTATION
 #include "../fixed-point.h"
@@ -14,6 +15,9 @@
 /* Maximum absolute error accepted when comparing a fixed-point result to
    a float reference.  One ULP in 24.8 is 1/256 ≈ 0.0039. */
 #define FP_TOL (2.0f / FP_SCALE) /* ±2 ULPs */
+
+#define TEST_FP_MAX_WHOLE_RAW ((fp32)((INT32_MAX / FP_SCALE) * FP_SCALE))
+#define TEST_FP_MIN_WHOLE_RAW ((fp32)((INT32_MIN / FP_SCALE) * FP_SCALE))
 
 /* Convert a float to fp32, run the operation, convert back for comparison. */
 static float fp32_to_f(fp32 v) { return fp_toFloat(v); }
@@ -75,6 +79,44 @@ void test_toFloat_round_trip(void)
         float result = fp_toFloat(fp_fromFloat(values[i]));
         TEST_ASSERT_FLOAT_WITHIN(FP_TOL, values[i], result);
     }
+}
+
+void test_toInt_truncates_negative_fraction_toward_zero(void)
+{
+    TEST_ASSERT_EQUAL_INT32(0, fp_toInt(-1));
+    TEST_ASSERT_EQUAL_INT32(0, fp_toInt(-(FP_SCALE - 1)));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_toInt(-(FP_SCALE + 1)));
+}
+
+void test_fromRatio_rounds_nearest_away_from_zero(void)
+{
+    TEST_ASSERT_EQUAL_INT32(26, fp_fromRatio(1, 10));
+    TEST_ASSERT_EQUAL_INT32(-26, fp_fromRatio(-1, 10));
+    TEST_ASSERT_EQUAL_INT32(FP_SCALE / 3, fp_fromRatio(1, 3));
+}
+
+void test_raw_conversion_is_exact(void)
+{
+    fp32 values[] = {INT32_MIN, -1, 0, 1, INT32_MAX };
+    size_t count = sizeof(values) / sizeof(values[0]);
+
+    for (size_t i = 0; i < count; ++i) {
+        TEST_ASSERT_EQUAL_INT32(values[i], fp_toRaw(fp_fromRaw(values[i])));
+    }
+}
+
+void test_fromFloat_half_ulp_ties_away_from_zero(void)
+{
+    float half_ulp = ldexpf(1.0f, -(FP_FRAC_BITS + 1));
+    TEST_ASSERT_EQUAL_INT32(1, fp_fromFloat(half_ulp));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_fromFloat(-half_ulp));
+}
+
+void test_fromFloat_special_values(void)
+{
+    TEST_ASSERT_EQUAL_INT32(0, fp_fromFloat(NAN));
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_fromFloat(INFINITY));
+    TEST_ASSERT_EQUAL_INT32(INT32_MIN, fp_fromFloat(-INFINITY));
 }
 
 /* =========================================================================
@@ -240,6 +282,77 @@ void test_sq_fraction(void)
 }
 
 /* =========================================================================
+   Arithmetic — rounding
+   ========================================================================= */
+
+void test_mul_ties_away_from_zero(void)
+{
+    fp32 half = FP_SCALE / 2;
+
+    TEST_ASSERT_EQUAL_INT32(1, fp_mul(1, half));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_mul(-1, half));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_mul(1, -half));
+    TEST_ASSERT_EQUAL_INT32(1, fp_mul(-1, -half));
+}
+
+void test_div_ties_away_from_zero(void)
+{
+    fp32 two = FP_SCALE * 2;
+
+    TEST_ASSERT_EQUAL_INT32(1, fp_div(1, two));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_div(-1, two));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_div(1, -two));
+    TEST_ASSERT_EQUAL_INT32(1, fp_div(-1, -two));
+}
+
+void test_mul_is_sign_symmetric_in_safe_range(void)
+{
+    for (fp32 a = 0; a <= 64; ++a) {
+        for (fp32 b = -64; b <= 64; ++b) {
+            TEST_ASSERT_EQUAL_INT32(-fp_mul(a, b), fp_mul(-a, b));
+        }
+    }
+}
+
+void test_div_is_sign_symmetric_in_safe_range(void)
+{
+    for (fp32 a = 0; a <= 64; ++a) {
+        for (fp32 b = -64; b <= 64; ++b) {
+            if (b == 0) continue;
+            TEST_ASSERT_EQUAL_INT32(-fp_div(a, b), fp_div(-a, b));
+        }
+    }
+}
+
+/* =========================================================================
+   Overflow / Underflow / Saturation
+   ========================================================================= */
+
+void test_arithmetic_saturates_at_raw_boundaries(void)
+{
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_add(INT32_MAX, 1));
+    TEST_ASSERT_EQUAL_INT32(INT32_MIN, fp_sub(INT32_MIN, 1));
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_abs(INT32_MIN));
+}
+
+void test_fromInt_saturates(void)
+{
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_fromInt(INT32_MAX));
+    TEST_ASSERT_EQUAL_INT32(INT32_MIN, fp_fromInt(INT32_MIN));
+}
+
+void test_abs_boundary_values(void)
+{
+    TEST_ASSERT_EQUAL_INT32(0, fp_abs(0));
+    TEST_ASSERT_EQUAL_INT32(1, fp_abs(1));
+    TEST_ASSERT_EQUAL_INT32(1, fp_abs(-1));
+
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_abs(INT32_MAX));
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_abs(-INT32_MAX));
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_abs(INT32_MIN));
+}
+
+/* =========================================================================
    Rounding & Grid
    ========================================================================= */
 
@@ -332,6 +445,97 @@ void test_frac_negative(void)
     fp32 frac = fp_frac(v);
     float f   = fp32_to_f(fp_abs(frac));
     TEST_ASSERT_TRUE(f >= 0.0f && f < 1.0f);
+}
+
+void test_round_ties_away_from_zero(void)
+{
+    TEST_ASSERT_EQUAL_INT32(FP_SCALE, fp_round(FP_SCALE / 2));
+    TEST_ASSERT_EQUAL_INT32(-FP_SCALE, fp_round(-(FP_SCALE / 2)));
+    TEST_ASSERT_EQUAL_INT32(3 * FP_SCALE, fp_round(2 * FP_SCALE + FP_SCALE / 2));
+    TEST_ASSERT_EQUAL_INT32(-3 * FP_SCALE, fp_round(-(2 * FP_SCALE + FP_SCALE / 2)));
+}
+
+void test_round_values_around_half(void)
+{
+    TEST_ASSERT_EQUAL_INT32(0, fp_round(FP_SCALE / 2 - 1));
+    TEST_ASSERT_EQUAL_INT32(0, fp_round(-(FP_SCALE / 2 - 1)));
+    TEST_ASSERT_EQUAL_INT32(FP_SCALE, fp_round(FP_SCALE / 2 + 1));
+    TEST_ASSERT_EQUAL_INT32(-FP_SCALE, fp_round(-(FP_SCALE / 2 + 1)));
+}
+
+void test_floor_ceil_exact_raw_cases(void)
+{
+    TEST_ASSERT_EQUAL_INT32(FP_SCALE, fp_floor(FP_SCALE + 1));
+    TEST_ASSERT_EQUAL_INT32(FP_SCALE * 2, fp_ceil(FP_SCALE + 1));
+    TEST_ASSERT_EQUAL_INT32(-FP_SCALE * 2, fp_floor(-FP_SCALE - 1));
+    TEST_ASSERT_EQUAL_INT32(-FP_SCALE, fp_ceil(-FP_SCALE - 1));
+}
+
+void test_rounding_at_raw_boundaries(void)
+{
+    TEST_ASSERT_EQUAL_INT32(INT32_MIN, fp_floor(INT32_MIN));
+    TEST_ASSERT_EQUAL_INT32(TEST_FP_MAX_WHOLE_RAW, fp_ceil(INT32_MAX));
+    TEST_ASSERT_EQUAL_INT32(TEST_FP_MAX_WHOLE_RAW, fp_round(INT32_MAX));
+}
+
+/* =========================================================================
+   Faction
+   ========================================================================= */
+
+void test_frac_uses_mathematical_fraction(void)
+{
+    TEST_ASSERT_EQUAL_INT32(FP_SCALE / 4, fp_frac(FP_SCALE + FP_SCALE / 4));
+    TEST_ASSERT_EQUAL_INT32((FP_SCALE * 3) / 4, fp_frac(-FP_SCALE - FP_SCALE / 4));
+    TEST_ASSERT_EQUAL_INT32(FP_SCALE - 1, fp_frac(-1));
+    TEST_ASSERT_EQUAL_INT32(0, fp_frac(INT32_MIN));
+}
+
+void test_floor_plus_frac_reconstructs_value(void)
+{
+    fp32 values[] = {
+        INT32_MIN,
+        -FP_SCALE - 1,
+        -FP_SCALE,
+        -1,
+        0,
+        1,
+        FP_SCALE - 1,
+        FP_SCALE,
+        FP_SCALE + 1,
+        INT32_MAX
+    };
+
+    size_t count = sizeof(values) / sizeof(values[0]);
+
+    for (size_t i = 0; i < count; ++i) {
+        int64_t reconstructed = (int64_t)fp_floor(values[i]) + (int64_t)fp_frac(values[i]);
+        TEST_ASSERT_EQUAL_INT64(values[i], reconstructed);
+    }
+}
+
+void test_rounding_properties_over_small_raw_range(void)
+{
+    for (fp32 value = -4 * FP_SCALE;
+         value <= 4 * FP_SCALE;
+         ++value)
+    {
+        fp32 floor_value = fp_floor(value);
+        fp32 ceil_value = fp_ceil(value);
+        fp32 rounded_value = fp_round(value);
+        fp32 fraction = fp_frac(value);
+
+        TEST_ASSERT_TRUE(floor_value <= value);
+        TEST_ASSERT_TRUE(ceil_value >= value);
+
+        TEST_ASSERT_EQUAL_INT32(0, floor_value % FP_SCALE);
+        TEST_ASSERT_EQUAL_INT32(0, ceil_value % FP_SCALE);
+        TEST_ASSERT_EQUAL_INT32(0, rounded_value % FP_SCALE);
+
+        TEST_ASSERT_TRUE(fraction >= 0);
+        TEST_ASSERT_TRUE(fraction < FP_SCALE);
+
+        TEST_ASSERT_EQUAL_INT64(value, (int64_t)floor_value + fraction);
+    }
 }
 
 /* =========================================================================
@@ -480,6 +684,48 @@ void test_manhattan_negative_coords(void)
     TEST_ASSERT_FLOAT_WITHIN(FP_TOL, 7.0f, fp32_to_f(d));
 }
 
+void test_dot_combines_fractional_products_before_rounding(void)
+{
+    /*
+     * Each product contributes exactly 0.5 raw ULP.
+     * Combined result must be one raw ULP.
+     */
+    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE / 2, FP_SCALE / 2));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE / 2, -FP_SCALE / 2));
+}
+
+void test_dot_extreme_terms_can_cancel_exactly(void)
+{
+    TEST_ASSERT_EQUAL_INT32(0, fp_dot(INT32_MAX, INT32_MAX, INT32_MAX, -INT32_MAX));
+}
+
+void test_dot_saturates_without_intermediate_overflow(void)
+{
+    TEST_ASSERT_EQUAL_INT32(INT32_MAX, fp_dot(INT32_MIN, INT32_MIN, INT32_MIN, INT32_MIN));
+    TEST_ASSERT_EQUAL_INT32(INT32_MIN, fp_dot(INT32_MAX, INT32_MAX, INT32_MIN, INT32_MIN));
+}
+
+void test_dot_is_commutative_over_raw_sample(void)
+{
+    fp32 vectors[][4] = {
+        { 1, 2, 3, 4 },
+        { -1, 7, 13, -9 },
+        { FP_SCALE / 2, FP_SCALE / 3, 5, -11 },
+        { INT32_MAX, 0, 0, INT32_MIN }
+    };
+
+    size_t count = sizeof(vectors) / sizeof(vectors[0]);
+
+    for (size_t i = 0; i < count; ++i) {
+        fp32 x1 = vectors[i][0];
+        fp32 y1 = vectors[i][1];
+        fp32 x2 = vectors[i][2];
+        fp32 y2 = vectors[i][3];
+
+        TEST_ASSERT_EQUAL_INT32(fp_dot(x1, y1, x2, y2), fp_dot(x2, y2, x1, y1));
+    }
+}
+
 /* =========================================================================
    Complex Math — sqrt
    ========================================================================= */
@@ -584,6 +830,18 @@ void test_atan2_result_in_range(void)
     }
 }
 
+void test_atan2_large_coordinates(void)
+{
+    TEST_ASSERT_INT_WITHIN(1, 32, fp_atan2(3000000, 3000000));
+    TEST_ASSERT_INT_WITHIN(1, 160, fp_atan2(-3000000, -3000000));
+}
+
+void test_atan2_raw_extremes(void)
+{
+    TEST_ASSERT_INT_WITHIN(1, 128, fp_atan2(0, INT32_MIN));
+    TEST_ASSERT_INT_WITHIN(1, 192, fp_atan2(INT32_MIN, 0));
+}
+
 /* =========================================================================
    Complex Math — sin / cos
    ========================================================================= */
@@ -652,6 +910,20 @@ void test_sin_symmetry_around_half(void)
         fp32 left  = fp_sin((fp_angle)x);
         fp32 right = fp_sin((fp_angle)(128 - x));
         TEST_ASSERT_INT_WITHIN(1, (int)left, (int)right);
+    }
+}
+
+void test_sin_cos_raw_bounds_for_every_angle(void)
+{
+    for (int angle = 0; angle < 256; ++angle) {
+        fp32 sine = fp_sin((fp_angle)angle);
+        fp32 cosine = fp_cos((fp_angle)angle);
+
+        TEST_ASSERT_TRUE(sine >= -FP_SCALE);
+        TEST_ASSERT_TRUE(sine <= FP_SCALE);
+
+        TEST_ASSERT_TRUE(cosine >= -FP_SCALE);
+        TEST_ASSERT_TRUE(cosine <= FP_SCALE);
     }
 }
 
@@ -746,6 +1018,14 @@ int main(void)
     RUN_TEST(test_fromFloat_positive_fraction);
     RUN_TEST(test_fromFloat_negative_fraction);
     RUN_TEST(test_toFloat_round_trip);
+    RUN_TEST(test_toInt_truncates_negative_fraction_toward_zero);
+    RUN_TEST(test_fromRatio_rounds_nearest_away_from_zero);
+    RUN_TEST(test_raw_conversion_is_exact);
+    RUN_TEST(test_fromFloat_half_ulp_ties_away_from_zero);
+    RUN_TEST(test_fromFloat_special_values);
+    RUN_TEST(test_arithmetic_saturates_at_raw_boundaries);
+    RUN_TEST(test_fromInt_saturates);
+    RUN_TEST(test_abs_boundary_values);
 
     /* Add / Sub */
     RUN_TEST(test_add_positive);
@@ -754,6 +1034,7 @@ int main(void)
     RUN_TEST(test_sub_positive_result);
     RUN_TEST(test_sub_negative_result);
     RUN_TEST(test_add_is_commutative);
+
 
     /* Mul / Div */
     RUN_TEST(test_mul_two_integers);
@@ -767,6 +1048,10 @@ int main(void)
     RUN_TEST(test_div_negative_dividend);
     RUN_TEST(test_div_by_zero_returns_zero);
     RUN_TEST(test_div_by_self);
+    RUN_TEST(test_mul_ties_away_from_zero);
+    RUN_TEST(test_div_ties_away_from_zero);
+    RUN_TEST(test_mul_is_sign_symmetric_in_safe_range);
+    RUN_TEST(test_div_is_sign_symmetric_in_safe_range);
 
     /* Abs / Sq */
     RUN_TEST(test_abs_positive);
@@ -792,6 +1077,13 @@ int main(void)
     RUN_TEST(test_frac_positive);
     RUN_TEST(test_frac_positive_zero_fraction);
     RUN_TEST(test_frac_negative);
+    RUN_TEST(test_round_ties_away_from_zero);
+    RUN_TEST(test_round_values_around_half);
+    RUN_TEST(test_floor_ceil_exact_raw_cases);
+    RUN_TEST(test_rounding_at_raw_boundaries);
+    RUN_TEST(test_frac_uses_mathematical_fraction);
+    RUN_TEST(test_floor_plus_frac_reconstructs_value);
+    RUN_TEST(test_rounding_properties_over_small_raw_range);
 
     /* Boundaries */
     RUN_TEST(test_min_returns_smaller);
@@ -816,6 +1108,10 @@ int main(void)
     RUN_TEST(test_manhattan_axis_aligned);
     RUN_TEST(test_manhattan_is_symmetric);
     RUN_TEST(test_manhattan_negative_coords);
+    RUN_TEST(test_dot_combines_fractional_products_before_rounding);
+    RUN_TEST(test_dot_extreme_terms_can_cancel_exactly);
+    RUN_TEST(test_dot_saturates_without_intermediate_overflow);
+    RUN_TEST(test_dot_is_commutative_over_raw_sample);
 
     /* Sqrt */
     RUN_TEST(test_sqrt_zero);
@@ -833,6 +1129,8 @@ int main(void)
     RUN_TEST(test_atan2_negative_y_axis);
     RUN_TEST(test_atan2_45_degrees);
     RUN_TEST(test_atan2_result_in_range);
+    RUN_TEST(test_atan2_large_coordinates);
+    RUN_TEST(test_atan2_raw_extremes);
 
     /* Sin / Cos */
     RUN_TEST(test_sin_zero_is_zero);
@@ -844,6 +1142,7 @@ int main(void)
     RUN_TEST(test_cos_quarter_is_zero);
     RUN_TEST(test_cos_is_sin_shifted);
     RUN_TEST(test_sin_symmetry_around_half);
+    RUN_TEST(test_sin_cos_raw_bounds_for_every_angle);
 
     /* Integration */
     RUN_TEST(test_pythagorean_distance_via_sqrt);

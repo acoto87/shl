@@ -18,6 +18,7 @@ typedef enum
 {
     BuildModeDefault,
     BuildModeAsan,
+    BuildModeUbsan,
     BuildModeValgrind
 } BuildMode;
 
@@ -108,6 +109,9 @@ static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
     {
         case BuildModeAsan:
             nob_cmd_append(cmd, "-fsanitize=address", "-fno-omit-frame-pointer", "-g", "-DSHL_LEAK_CHECK=1");
+            break;
+        case BuildModeUbsan:
+            nob_cmd_append(cmd, "-O1", "-fno-omit-frame-pointer", "-fsanitize=undefined,float-cast-overflow", "-fno-sanitize-recover=all", "-g");
             break;
         case BuildModeValgrind:
             nob_cmd_append(cmd, "-O0", "-g", "-DSHL_LEAK_CHECK=1");
@@ -291,6 +295,12 @@ int main(int argc, char** argv)
         out_dir = "build/asan";
         run = true;
     }
+    else if (strcmp(command, "ubsan") == 0)
+    {
+        mode = BuildModeUbsan;
+        out_dir = "build/ubsan";
+        run = true;
+    }
     else if (strcmp(command, "valgrind") == 0)
     {
         mode = BuildModeValgrind;
@@ -299,7 +309,7 @@ int main(int argc, char** argv)
     }
     else
     {
-        nob_log(NOB_ERROR, "Unknown command `%s`. Expected build, test, asan, or valgrind.", command);
+        nob_log(NOB_ERROR, "Unknown command `%s`. Expected build, test, asan, ubsan, or valgrind.", command);
         print_usage(argv[0]);
         return 1;
     }

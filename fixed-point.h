@@ -63,6 +63,7 @@
 #define FIXED_POINT_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* ========================================================================= *
  * COMPILER & LINKAGE CONFIGURATION
@@ -72,7 +73,14 @@
     #define FP_FRAC_BITS 8
 #endif
 
-#define FP_SCALE (1 << FP_FRAC_BITS)
+#if FP_FRAC_BITS < 1 || FP_FRAC_BITS > 30
+    #error "FP_FRAC_BITS must be between 1 and 30"
+#endif
+
+#define FP_SCALE (INT32_C(1) << FP_FRAC_BITS)
+
+#define FP_MAX_INTEGER (INT32_MAX / FP_SCALE)
+#define FP_MIN_INTEGER (INT32_MIN / FP_SCALE)
 
 // Setup STB-style linkage macros
 #ifndef FIXED_POINT_DEF
@@ -83,37 +91,53 @@
     #endif
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int32_t fp32;
 typedef uint8_t fp_angle; // 0-255 binary angle (naturally wraps 360 degrees)
+
+/* ========================================================================= *
+ * CONSTANTS DECLARATIONS
+ * ========================================================================= */
+
+#define FP_ZERO ((fp32)0)
+#define FP_ONE  ((fp32)FP_SCALE)
+#define FP_HALF ((fp32)(FP_SCALE / 2))
 
 /* ========================================================================= *
  * FUNCTION DECLARATIONS (API)
  * ========================================================================= */
 
 // Conversions
-FIXED_POINT_DEF fp32 fp_fromInt(int32_t i);
-FIXED_POINT_DEF int32_t fp_toInt(fp32 f);
-FIXED_POINT_DEF fp32 fp_fromFloat(float f);
-FIXED_POINT_DEF float fp_toFloat(fp32 f);
+FIXED_POINT_DEF fp32 fp_fromRaw(int32_t raw);
+FIXED_POINT_DEF int32_t fp_toRaw(fp32 x);
+FIXED_POINT_DEF fp32 fp_fromRatio(int32_t num, int32_t den);
+
+FIXED_POINT_DEF fp32 fp_fromInt(int32_t x);
+FIXED_POINT_DEF int32_t fp_toInt(fp32 x);
+FIXED_POINT_DEF fp32 fp_fromFloat(float x);
+FIXED_POINT_DEF float fp_toFloat(fp32 x);
 
 // Arithmetic
 FIXED_POINT_DEF fp32 fp_add(fp32 a, fp32 b);
 FIXED_POINT_DEF fp32 fp_sub(fp32 a, fp32 b);
 FIXED_POINT_DEF fp32 fp_mul(fp32 a, fp32 b);
 FIXED_POINT_DEF fp32 fp_div(fp32 a, fp32 b);
-FIXED_POINT_DEF fp32 fp_abs(fp32 a);
-FIXED_POINT_DEF fp32 fp_sq(fp32 a);
+FIXED_POINT_DEF fp32 fp_abs(fp32 x);
+FIXED_POINT_DEF fp32 fp_sq(fp32 x);
 
 // Rounding & Grid
-FIXED_POINT_DEF fp32 fp_floor(fp32 a);
-FIXED_POINT_DEF fp32 fp_ceil(fp32 a);
-FIXED_POINT_DEF fp32 fp_round(fp32 a);
-FIXED_POINT_DEF fp32 fp_frac(fp32 a);
+FIXED_POINT_DEF fp32 fp_floor(fp32 x);
+FIXED_POINT_DEF fp32 fp_ceil(fp32 x);
+FIXED_POINT_DEF fp32 fp_round(fp32 x);
+FIXED_POINT_DEF fp32 fp_frac(fp32 x);
 
 // Boundaries
 FIXED_POINT_DEF fp32 fp_min(fp32 a, fp32 b);
 FIXED_POINT_DEF fp32 fp_max(fp32 a, fp32 b);
-FIXED_POINT_DEF fp32 fp_clamp(fp32 v, fp32 min, fp32 max);
+FIXED_POINT_DEF fp32 fp_clamp(fp32 x, fp32 min, fp32 max);
 FIXED_POINT_DEF int32_t fp_sign(fp32 a);
 
 // Vectors & Distance
@@ -121,13 +145,14 @@ FIXED_POINT_DEF fp32 fp_dot(fp32 x1, fp32 y1, fp32 x2, fp32 y2);
 FIXED_POINT_DEF fp32 fp_manhattan(fp32 x1, fp32 y1, fp32 x2, fp32 y2);
 
 // Complex Deterministic Math
-FIXED_POINT_DEF fp32 fp_sqrt(fp32 a);
+FIXED_POINT_DEF fp32 fp_sqrt(fp32 x);
 FIXED_POINT_DEF fp_angle fp_atan2(fp32 y, fp32 x);
 FIXED_POINT_DEF fp32 fp_sin(fp_angle angle);
 FIXED_POINT_DEF fp32 fp_cos(fp_angle angle);
 
-#endif // FIXED_POINT_H
-
+#ifdef __cplusplus
+}
+#endif
 
 /* ========================================================================= *
  * IMPLEMENTATION BLOCK
@@ -135,47 +160,175 @@ FIXED_POINT_DEF fp32 fp_cos(fp_angle angle);
 
 #if defined(FIXED_POINT_IMPLEMENTATION) || defined(FIXED_POINT_STATIC)
 
-FIXED_POINT_DEF fp32 fp_fromInt(int32_t i) { return i << FP_FRAC_BITS; }
-FIXED_POINT_DEF int32_t fp_toInt(fp32 f)   { return f >> FP_FRAC_BITS; }
-FIXED_POINT_DEF fp32 fp_fromFloat(float f) { return (fp32)(f * FP_SCALE); }
-FIXED_POINT_DEF float fp_toFloat(fp32 f)   { return (float)f / FP_SCALE; }
+#define FP_MAX_WHOLE_RAW ((fp32)((INT32_MAX / FP_SCALE) * FP_SCALE))
+#define FP_MIN_WHOLE_RAW ((fp32)((INT32_MIN / FP_SCALE) * FP_SCALE))
 
-FIXED_POINT_DEF fp32 fp_add(fp32 a, fp32 b) { return a + b; }
-FIXED_POINT_DEF fp32 fp_sub(fp32 a, fp32 b) { return a - b; }
+static inline fp32 fp__sat_i64(int64_t x)
+{
+    if (x > INT32_MAX) return INT32_MAX;
+    if (x < INT32_MIN) return INT32_MIN;
+    return (fp32)x;
+}
 
+static inline uint64_t fp__uabs_i64(int64_t x)
+{
+    return x < 0 ? UINT64_C(0) - (uint64_t)x : (uint64_t)x;
+}
+
+/*
+ * Divide and round to nearest, with exact ties rounded away from zero.
+ * Precondition: denominator != 0.
+ */
+static inline int64_t fp__div_round_nearest(int64_t num, int64_t den)
+{
+    int64_t quotient = num / den;
+    int64_t remainder = num % den;
+
+    uint64_t abs_remainder = fp__uabs_i64(remainder);
+    uint64_t abs_denominator = fp__uabs_i64(den);
+
+    /*
+     * Equivalent to:
+     *     2 * abs_remainder >= abs_denominator
+     * but without risking overflow from multiplication by 2.
+     */
+    if (abs_remainder >= abs_denominator - abs_remainder) {
+        bool result_is_negative = (num < 0) != (den < 0);
+        quotient += result_is_negative ? -1 : 1;
+    }
+
+    return quotient;
+}
+
+static inline fp32 fp__clamp_safe(int64_t x)
+{
+    if (x > FP_MAX_WHOLE_RAW) return FP_MAX_WHOLE_RAW;
+    if (x < FP_MIN_WHOLE_RAW) return FP_MIN_WHOLE_RAW;
+    return (fp32)x;
+}
+
+FIXED_POINT_DEF fp32 fp_fromRaw(int32_t raw) { return raw; }
+FIXED_POINT_DEF int32_t fp_toRaw(fp32 x) { return x; }
+FIXED_POINT_DEF fp32 fp_fromRatio(int32_t num, int32_t den)
+{
+    if (den == 0) return 0;
+    int64_t scaled = (int64_t)num * (int64_t)FP_SCALE;
+    int64_t result = fp__div_round_nearest(scaled, den);
+    return fp__sat_i64(result);
+}
+
+FIXED_POINT_DEF fp32 fp_fromInt(int32_t x) { return fp__sat_i64((int64_t)x * (int64_t)FP_SCALE); }
+FIXED_POINT_DEF int32_t fp_toInt(fp32 x) { return x / FP_SCALE; }
+FIXED_POINT_DEF fp32 fp_fromFloat(float x)
+{
+    double scaled = (double)x * (double)FP_SCALE;
+
+    /* NaN */
+    if (scaled != scaled) return 0;
+
+    /*
+     * Include half an ULP because conversion rounds to nearest,
+     * ties away from zero.
+     */
+    if (scaled >= (double)INT32_MAX + 0.5) return INT32_MAX;
+    if (scaled <= (double)INT32_MIN - 0.5) return INT32_MIN;
+    if (scaled >= 0.0) return (fp32)(scaled + 0.5);
+    return (fp32)(scaled - 0.5);
+}
+FIXED_POINT_DEF float fp_toFloat(fp32 x) { return (float)x / FP_SCALE; }
+
+FIXED_POINT_DEF fp32 fp_add(fp32 a, fp32 b) { return fp__sat_i64((int64_t)a + (int64_t)b); }
+FIXED_POINT_DEF fp32 fp_sub(fp32 a, fp32 b) { return fp__sat_i64((int64_t)a - (int64_t)b); }
 FIXED_POINT_DEF fp32 fp_mul(fp32 a, fp32 b) {
-    return (fp32)(((int64_t)a * (int64_t)b) >> FP_FRAC_BITS);
+    int64_t product = (int64_t)a * (int64_t)b;
+    int64_t scaled = fp__div_round_nearest(product, FP_SCALE);
+    return fp__sat_i64(scaled);
 }
-
 FIXED_POINT_DEF fp32 fp_div(fp32 a, fp32 b) {
-    if (b == 0) return 0; // Or handle divide-by-zero via engine assertions
-    return (fp32)((((int64_t)a) << FP_FRAC_BITS) / b);
+    if (b == 0) return 0;
+    int64_t numerator = (int64_t)a * (int64_t)FP_SCALE; // Multiplication is used instead of left-shifting a potentially negative signed value.
+    int64_t result = fp__div_round_nearest(numerator, b);
+    return fp__sat_i64(result);
 }
 
-FIXED_POINT_DEF fp32 fp_abs(fp32 a) { return (a < 0) ? -a : a; }
-FIXED_POINT_DEF fp32 fp_sq(fp32 a)  { return fp_mul(a, a); }
+FIXED_POINT_DEF fp32 fp_abs(fp32 x) {
+    if (x == INT32_MIN) return INT32_MAX;
+    return x < 0 ? -x : x;
+}
+FIXED_POINT_DEF fp32 fp_sq(fp32 x)  { return fp_mul(x, x); }
 
-FIXED_POINT_DEF fp32 fp_floor(fp32 a) { return a & ~(FP_SCALE - 1); }
-FIXED_POINT_DEF fp32 fp_ceil(fp32 a)  { return (a + (FP_SCALE - 1)) & ~(FP_SCALE - 1); }
-FIXED_POINT_DEF fp32 fp_round(fp32 a) { return (a + (FP_SCALE >> 1)) & ~(FP_SCALE - 1); }
-FIXED_POINT_DEF fp32 fp_frac(fp32 a)  { return a & (FP_SCALE - 1); }
+FIXED_POINT_DEF fp32 fp_floor(fp32 x)
+{
+    fp32 remainder = x % FP_SCALE;
+    if (remainder == 0) return x;
+    int64_t result = (int64_t)x - remainder;
+    if (x < 0) result -= FP_SCALE;
+    return fp__clamp_safe(result);
+}
+
+FIXED_POINT_DEF fp32 fp_ceil(fp32 x)
+{
+    fp32 remainder = x % FP_SCALE;
+    if (remainder == 0) return x;
+    int64_t result = (int64_t)x - remainder;
+    if (x >= 0) result += FP_SCALE;
+    return fp__clamp_safe(result);
+}
+
+FIXED_POINT_DEF fp32 fp_round(fp32 x)
+{
+    int64_t whole = fp__div_round_nearest(x, FP_SCALE);
+    int64_t result = whole * (int64_t)FP_SCALE;
+    return fp__clamp_safe(result);
+}
+
+FIXED_POINT_DEF fp32 fp_frac(fp32 x)
+{
+    fp32 remainder = x % FP_SCALE;
+    if (remainder < 0) remainder += FP_SCALE; // Convert C's signed remainder into the mathematical fractional interval [0, 1).
+    return remainder;
+}
 
 FIXED_POINT_DEF fp32 fp_min(fp32 a, fp32 b) { return (a < b) ? a : b; }
 FIXED_POINT_DEF fp32 fp_max(fp32 a, fp32 b) { return (a > b) ? a : b; }
-FIXED_POINT_DEF fp32 fp_clamp(fp32 v, fp32 min, fp32 max) { return (v < min) ? min : ((v > max) ? max : v); }
-FIXED_POINT_DEF int32_t fp_sign(fp32 a) { return (a > 0) - (a < 0); }
+FIXED_POINT_DEF fp32 fp_clamp(fp32 x, fp32 min, fp32 max) { return (x < min) ? min : ((x > max) ? max : x); }
+FIXED_POINT_DEF int32_t fp_sign(fp32 x) { return (x > 0) - (x < 0); }
 
 FIXED_POINT_DEF fp32 fp_dot(fp32 x1, fp32 y1, fp32 x2, fp32 y2) {
-    return fp_add(fp_mul(x1, x2), fp_mul(y1, y2));
+    int64_t xx = (int64_t)x1 * (int64_t)x2;
+    int64_t yy = (int64_t)y1 * (int64_t)y2;
+
+     /*
+     * Decompose each product:
+     *  product = quotient * FP_SCALE + remainder
+     */
+    int64_t qx = xx / FP_SCALE;
+    int64_t rx = xx % FP_SCALE;
+
+    int64_t qy = yy / FP_SCALE;
+    int64_t ry = yy % FP_SCALE;
+
+    /*
+     * For FP_FRAC_BITS >= 1, qx + qy fits int64_t.
+     * The remainders are each smaller than FP_SCALE.
+     */
+    int64_t s = qx + qy;
+    int64_t r = rx + ry;
+    int64_t rr = fp__div_round_nearest(r, FP_SCALE);
+    return fp__sat_i64(s + rr);
 }
 
 FIXED_POINT_DEF fp32 fp_manhattan(fp32 x1, fp32 y1, fp32 x2, fp32 y2) {
-    return fp_add(fp_abs(fp_sub(x2, x1)), fp_abs(fp_sub(y2, y1)));
+    int64_t dx = (int64_t)x2 - (int64_t)x1;
+    int64_t dy = (int64_t)y2 - (int64_t)y1;
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    return fp__sat_i64(dx + dy);
 }
 
-FIXED_POINT_DEF fp32 fp_sqrt(fp32 a) {
-    if (a <= 0) return 0;
-    uint64_t num = (uint64_t)a << FP_FRAC_BITS;
+FIXED_POINT_DEF fp32 fp_sqrt(fp32 x) {
+    if (x <= 0) return 0;
+    uint64_t num = (uint64_t)x << FP_FRAC_BITS;
     uint64_t res = 0;
     uint64_t bit = (uint64_t)1 << 62;
 
@@ -195,16 +348,15 @@ FIXED_POINT_DEF fp32 fp_sqrt(fp32 a) {
 FIXED_POINT_DEF fp_angle fp_atan2(fp32 y, fp32 x) {
     if (x == 0 && y == 0) return 0;
 
-    fp32 abs_y = fp_abs(y);
-    fp32 abs_x = fp_abs(x);
+    uint64_t ax = fp__uabs_i64((int64_t)x);
+    uint64_t ay = fp__uabs_i64((int64_t)y);
+    uint64_t sum = ax + ay;
 
-    fp32 ratio = (abs_y << 10) / (abs_x + abs_y);
-    fp_angle angle = (fp_angle)((ratio * 64) >> 10);
-
-    if (x < 0) angle = 128 - angle;
-    if (y < 0) angle = 256 - angle;
-
-    return angle;
+    /* Linear approximation, rounded rather than truncated. */
+    uint32_t angle = (uint32_t)((ay * UINT64_C(64) + sum / 2) / sum);
+    if (x < 0) angle = 128u - angle;
+    if (y < 0) angle = 256u - angle;
+    return (fp_angle)angle;
 }
 
 FIXED_POINT_DEF fp32 fp_sin(fp_angle angle) {
@@ -215,8 +367,9 @@ FIXED_POINT_DEF fp32 fp_sin(fp_angle angle) {
     }
     int32_t x = angle;
     int32_t y = x * (128 - x);
-    fp32 res = (fp32)((y * FP_SCALE) >> 12);
-    return q ? -res : res;
+    int64_t scaled = (int64_t)y * (int64_t)FP_SCALE;
+    fp32 result = (fp32)(scaled / INT64_C(4096));
+    return q ? -result : result;
 }
 
 FIXED_POINT_DEF fp32 fp_cos(fp_angle angle) {
@@ -224,3 +377,5 @@ FIXED_POINT_DEF fp32 fp_cos(fp_angle angle) {
 }
 
 #endif // FIXED_POINT_IMPLEMENTATION || FIXED_POINT_STATIC
+
+#endif // FIXED_POINT_H
