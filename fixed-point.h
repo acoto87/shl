@@ -55,8 +55,18 @@
     KNOWN LIMITATIONS
     fp_sin / fp_cos use a fast parabolic approximation; maximum error is
     roughly ±0.056 (in fixed-point units scaled to [-1, 1]).
-    fp_atan2 uses an octant-decomposed linear approximation; maximum angular
-    error is about ±2 binary-angle units (~2.8°).
+
+    fp_atan2 uses a quadrant-corrected linear L1-ratio approximation.
+    Its maximum error is approximately ±3.5 binary-angle units (about ±5 degrees).
+
+    fp_fromFloat and fp_toFloat are convenience APIs intended for rendering,
+    debugging, tools, and tests. Canonical deterministic state should use
+    fp_fromRaw, fp_toRaw, fp_fromRatio, or fp_fromInt.
+
+    At the positive representational limit, fp_ceil and fp_round saturate
+    to FP_MAX_WHOLE_RAW, the largest fixed-point value with zero fractional
+    bits. Consequently, fp_ceil(x) may be less than x when x is above
+    FP_MAX_WHOLE_RAW.
 */
 
 #ifndef FIXED_POINT_H
@@ -298,24 +308,37 @@ FIXED_POINT_DEF fp32 fp_dot(fp32 x1, fp32 y1, fp32 x2, fp32 y2) {
     int64_t xx = (int64_t)x1 * (int64_t)x2;
     int64_t yy = (int64_t)y1 * (int64_t)y2;
 
-     /*
-     * Decompose each product:
-     *  product = quotient * FP_SCALE + remainder
-     */
-    int64_t qx = xx / FP_SCALE;
-    int64_t rx = xx % FP_SCALE;
+    int64_t q = xx / FP_SCALE + yy / FP_SCALE;
+    int64_t r = xx % FP_SCALE + yy % FP_SCALE;
 
-    int64_t qy = yy / FP_SCALE;
-    int64_t ry = yy % FP_SCALE;
+    // Bring the combined remainder into: -FP_SCALE < r < FP_SCALE
+    if (r >= FP_SCALE) {
+        ++q;
+        r -= FP_SCALE;
+    } else if (r <= -FP_SCALE) {
+        --q;
+        r += FP_SCALE;
+    }
 
     /*
-     * For FP_FRAC_BITS >= 1, qx + qy fits int64_t.
-     * The remainders are each smaller than FP_SCALE.
+     * Convert q/r into the same representation produced by:
+     *
+     *     total / FP_SCALE
+     *     total % FP_SCALE
+     *
+     * C integer division truncates toward zero, so the remainder must
+     * have the same sign as the complete result, unless either is zero.
      */
-    int64_t s = qx + qy;
-    int64_t r = rx + ry;
+    if (q > 0 && r < 0) {
+        --q;
+        r += FP_SCALE;
+    } else if (q < 0 && r > 0) {
+        ++q;
+        r -= FP_SCALE;
+    }
+
     int64_t rr = fp__div_round_nearest(r, FP_SCALE);
-    return fp__sat_i64(s + rr);
+    return fp__sat_i64(q + rr);
 }
 
 FIXED_POINT_DEF fp32 fp_manhattan(fp32 x1, fp32 y1, fp32 x2, fp32 y2) {

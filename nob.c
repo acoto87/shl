@@ -12,6 +12,7 @@ typedef struct
     const char* source;
     const char* output;
     const char* extraSource;  /* optional second source file (multi-TU tests) */
+    const char* extraFlag;
 } TestTarget;
 
 typedef enum
@@ -24,23 +25,27 @@ typedef enum
 
 static const TestTarget TestTargets[] =
 {
-    { "tests/array_test.c",           "array_test",           NULL },
-    { "tests/binary_heap_test.c",     "binary_heap_test",     NULL },
-    { "tests/flic_test.c",            "flic_test",            NULL },
-    { "tests/list_test.c",            "list_test",            NULL },
-    { "tests/map_test.c",             "map_test",             NULL },
-    { "tests/memory_buffer_test.c",   "memory_buffer_test",   NULL },
-    { "tests/memzone_test.c",         "memzone_test",         NULL },
-    { "tests/memzone_audit_test.c",   "memzone_audit_test",   NULL },
-    { "tests/queue_test.c",           "queue_test",           NULL },
-    { "tests/set_test.c",             "set_test",             NULL },
-    { "tests/stack_test.c",           "stack_test",           NULL },
-    { "tests/voc_test.c",             "voc_test",             NULL },
-    { "tests/wav_test.c",             "wav_test",             NULL },
-    { "tests/wstr_test.c",            "wstr_test",            NULL },
-    { "tests/xmi2mid_test.c",         "xmi2mid_test",         NULL },
-    { "tests/multi_tu_test.c",        "multi_tu_test",        "tests/multi_tu_helper.c" },
-    { "tests/fixed_point_test.c",     "fixed_point_test",     NULL },
+    { "tests/array_test.c",         "array_test",           NULL,                      NULL                },
+    { "tests/binary_heap_test.c",   "binary_heap_test",     NULL,                      NULL                },
+    { "tests/flic_test.c",          "flic_test",            NULL,                      NULL                },
+    { "tests/list_test.c",          "list_test",            NULL,                      NULL                },
+    { "tests/map_test.c",           "map_test",             NULL,                      NULL                },
+    { "tests/memory_buffer_test.c", "memory_buffer_test",   NULL,                      NULL                },
+    { "tests/memzone_test.c",       "memzone_test",         NULL,                      NULL                },
+    { "tests/memzone_audit_test.c", "memzone_audit_test",   NULL,                      NULL                },
+    { "tests/queue_test.c",         "queue_test",           NULL,                      NULL                },
+    { "tests/set_test.c",           "set_test",             NULL,                      NULL                },
+    { "tests/stack_test.c",         "stack_test",           NULL,                      NULL                },
+    { "tests/voc_test.c",           "voc_test",             NULL,                      NULL                },
+    { "tests/wav_test.c",           "wav_test",             NULL,                      NULL                },
+    { "tests/wstr_test.c",          "wstr_test",            NULL,                      NULL                },
+    { "tests/xmi2mid_test.c",       "xmi2mid_test",         NULL,                      NULL                },
+    { "tests/multi_tu_test.c",      "multi_tu_test",        "tests/multi_tu_helper.c", NULL                },
+    { "tests/fixed_point_test.c",   "fixed_point_test",     NULL,                      NULL                },
+    { "tests/fixed_point_test.c",   "fixed_point_q1_test",  NULL,                      "-DFP_FRAC_BITS=1"  },
+    { "tests/fixed_point_test.c",   "fixed_point_q8_test",  NULL,                      "-DFP_FRAC_BITS=8"  },
+    { "tests/fixed_point_test.c",   "fixed_point_q16_test", NULL,                      "-DFP_FRAC_BITS=16" },
+    { "tests/fixed_point_test.c",   "fixed_point_q30_test", NULL,                      "-DFP_FRAC_BITS=30" },
 };
 
 static const TestTarget* find_test_target(const char* name)
@@ -97,8 +102,8 @@ static const BenchTarget* find_bench_target(const char* name)
 
 static void print_usage(const char* program)
 {
-    nob_log(NOB_INFO, "Usage: %s [build|test|asan|valgrind|bench] [all|name]", program);
-    nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test, %s bench list_bench", program, program, program, program);
+    nob_log(NOB_INFO, "Usage: %s [build|test|asan|ubsan|valgrind|bench] [all|name]", program);
+    nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test, %s ubsan fixed_point_test, %s bench list_bench", program, program, program, program);
 }
 
 static void append_mode_flags(Nob_Cmd* cmd, BuildMode mode)
@@ -140,6 +145,9 @@ static bool build_tests(BuildMode mode, const char* out_dir, const TestTarget* s
 
         nob_cc(&cmd);
         append_mode_flags(&cmd, mode);
+        if (target.extraFlag != NULL) {
+            nob_cmd_append(&cmd, target.extraFlag);
+        }
         nob_cc_output(&cmd, output_path);
         nob_cmd_append(&cmd, target.source);
         if (target.extraSource != NULL)

@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -726,6 +728,38 @@ void test_dot_is_commutative_over_raw_sample(void)
     }
 }
 
+void test_dot_mixed_sign_half_ulp_rounds_away_from_zero(void)
+{
+    /*
+     * (256 - 128) / 256 = +0.5 raw ULP.
+     */
+    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -FP_HALF));
+
+    /*
+     * (-256 + 128) / 256 = -0.5 raw ULP.
+     */
+    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, FP_HALF));
+}
+
+void test_dot_mixed_sign_values_around_half_ulp(void)
+{
+    /* 127 / 256: below positive half, rounds to zero. */
+    TEST_ASSERT_EQUAL_INT32(0, fp_dot(1, 1, FP_SCALE, -(FP_HALF + 1)));
+
+    /* 128 / 256: exact positive half, rounds away from zero. */
+    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -FP_HALF));
+
+    /* 129 / 256: above positive half, rounds to one. */
+    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -(FP_HALF - 1)));
+
+    /* Mirrored negative cases. */
+    TEST_ASSERT_EQUAL_INT32(0, fp_dot(1, 1, -FP_SCALE, FP_HALF + 1));
+
+    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, FP_HALF));
+
+    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, FP_HALF - 1));
+}
+
 /* =========================================================================
    Complex Math — sqrt
    ========================================================================= */
@@ -815,18 +849,32 @@ void test_atan2_45_degrees(void)
     TEST_ASSERT_INT_WITHIN(4, 32, (int)a);
 }
 
-void test_atan2_result_in_range(void)
+void test_atan2_approximation_error_bound(void)
 {
-    /* Result must always fit in a uint8_t — always true, but we check anyway */
-    fp32 coords[] = { fp_fromInt(3),  fp_fromInt(4),
-                      fp_fromInt(-2), fp_fromInt(7),
-                      fp_fromInt(5),  fp_fromInt(-5),
-                      fp_fromInt(-1), fp_fromInt(-1) };
-    for (int i = 0; i < 4; i++)
-    {
-        fp_angle a = fp_atan2(coords[i * 2], coords[i * 2 + 1]);
-        /* fp_angle is uint8_t so 0..255 is guaranteed, just call it out */
-        (void)a;
+    for (int y = -128; y <= 128; ++y) {
+        for (int x = -128; x <= 128; ++x) {
+            if (x == 0 && y == 0) {
+                continue;
+            }
+
+            fp_angle actual = fp_atan2(y, x);
+
+            double radians = atan2((double)y, (double)x);
+            if (radians < 0.0) {
+                radians += 2.0 * M_PI;
+            }
+
+            int expected = (int)llround(radians * 256.0 / (2.0 * M_PI));
+
+            expected &= 0xFF;
+
+            int difference = abs((int)actual - expected);
+            if (difference > 128) {
+                difference = 256 - difference;
+            }
+
+            TEST_ASSERT_LESS_OR_EQUAL_INT(4, difference);
+        }
     }
 }
 
@@ -1112,6 +1160,8 @@ int main(void)
     RUN_TEST(test_dot_extreme_terms_can_cancel_exactly);
     RUN_TEST(test_dot_saturates_without_intermediate_overflow);
     RUN_TEST(test_dot_is_commutative_over_raw_sample);
+    RUN_TEST(test_dot_mixed_sign_half_ulp_rounds_away_from_zero);
+    RUN_TEST(test_dot_mixed_sign_values_around_half_ulp);
 
     /* Sqrt */
     RUN_TEST(test_sqrt_zero);
@@ -1128,7 +1178,7 @@ int main(void)
     RUN_TEST(test_atan2_negative_x_axis);
     RUN_TEST(test_atan2_negative_y_axis);
     RUN_TEST(test_atan2_45_degrees);
-    RUN_TEST(test_atan2_result_in_range);
+    RUN_TEST(test_atan2_approximation_error_bound);
     RUN_TEST(test_atan2_large_coordinates);
     RUN_TEST(test_atan2_raw_extremes);
 
