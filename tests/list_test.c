@@ -5,9 +5,7 @@
 #include "../memzone.h"
 
 #include "../list.h"
-#include "../alloc.h"
 #define SHL_ALLOC_IMPLEMENTATION
-#include "../alloc.h"
 #include "../alloc.h"
 #include "test_common.h"
 
