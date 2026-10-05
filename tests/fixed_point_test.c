@@ -761,31 +761,31 @@ void test_dot_mixed_sign_half_ulp_rounds_away_from_zero(void)
     /*
      * (256 - 128) / 256 = +0.5 raw ULP.
      */
-    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -FP_HALF));
+    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -SHL_FP_HALF));
 
     /*
      * (-256 + 128) / 256 = -0.5 raw ULP.
      */
-    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, FP_HALF));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, SHL_FP_HALF));
 }
 
 void test_dot_mixed_sign_values_around_half_ulp(void)
 {
     /* 127 / 256: below positive half, rounds to zero. */
-    TEST_ASSERT_EQUAL_INT32(0, fp_dot(1, 1, FP_SCALE, -(FP_HALF + 1)));
+    TEST_ASSERT_EQUAL_INT32(0, fp_dot(1, 1, FP_SCALE, -(SHL_FP_HALF + 1)));
 
     /* 128 / 256: exact positive half, rounds away from zero. */
-    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -FP_HALF));
+    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -SHL_FP_HALF));
 
     /* 129 / 256: above positive half, rounds to one. */
-    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -(FP_HALF - 1)));
+    TEST_ASSERT_EQUAL_INT32(1, fp_dot(1, 1, FP_SCALE, -(SHL_FP_HALF - 1)));
 
     /* Mirrored negative cases. */
-    TEST_ASSERT_EQUAL_INT32(0, fp_dot(1, 1, -FP_SCALE, FP_HALF + 1));
+    TEST_ASSERT_EQUAL_INT32(0, fp_dot(1, 1, -FP_SCALE, SHL_FP_HALF + 1));
 
-    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, FP_HALF));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, SHL_FP_HALF));
 
-    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, FP_HALF - 1));
+    TEST_ASSERT_EQUAL_INT32(-1, fp_dot(1, 1, -FP_SCALE, SHL_FP_HALF - 1));
 }
 
 /* =========================================================================

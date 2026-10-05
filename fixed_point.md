@@ -59,9 +59,9 @@ Changing `FP_FRAC_BITS` trades integer range for fractional precision. With the 
 | --- | --- |
 | `fp32` | Signed 32-bit fixed-point value stored internally as `int32_t`. |
 | `fp_angle` | Unsigned 8-bit binary angle. The full range `0` through `255` represents one complete turn. |
-| `FP_ZERO` | Fixed-point `0.0`. |
-| `FP_ONE` | Fixed-point `1.0`. |
-| `FP_HALF` | Fixed-point `0.5`. |
+| `SHL_FP_ZERO` | Fixed-point `0.0`. |
+| `SHL_FP_ONE` | Fixed-point `1.0`. |
+| `SHL_FP_HALF` | Fixed-point `0.5`. |
 
 Binary angles wrap naturally because `fp_angle` is an unsigned 8-bit type:
 
@@ -80,7 +80,7 @@ Multiplication, division, ratio conversion, floating-point conversion, and `fp_r
 
 `fp_toInt` truncates toward zero.
 
-Division by zero returns `FP_ZERO`. `fp_sqrt` returns `FP_ZERO` for zero and negative inputs.
+Division by zero returns `SHL_FP_ZERO`. `fp_sqrt` returns `SHL_FP_ZERO` for zero and negative inputs.
 
 `fp_floor`, `fp_ceil`, and `fp_round` return values with no fractional raw bits. At the positive representational boundary, `fp_ceil` and `fp_round` clamp to the largest representable whole fixed-point value.
 
@@ -118,7 +118,7 @@ Division by zero returns `FP_ZERO`. `fp_sqrt` returns `FP_ZERO` for zero and neg
 | `fp_floor`(fp32 x) | Returns the greatest representable whole fixed-point value less than or equal to `x`. | `fp32` |
 | `fp_ceil`(fp32 x) | Returns the smallest representable whole fixed-point value greater than or equal to `x`, except when clamped at the positive whole-value boundary. | `fp32` |
 | `fp_round`(fp32 x) | Rounds to the nearest whole fixed-point value, with exact ties away from zero. | `fp32` |
-| `fp_frac`(fp32 x) | Returns the mathematical fractional part in the range `[FP_ZERO, FP_ONE)`. | `fp32` |
+| `fp_frac`(fp32 x) | Returns the mathematical fractional part in the range `[SHL_FP_ZERO, FP_ONE)`. | `fp32` |
 
 `fp_frac` follows the mathematical definition `x - floor(x)`. For example, the fractional part of `-1.25` is `0.75`.
 

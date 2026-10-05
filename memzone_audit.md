@@ -33,6 +33,11 @@ In all other translation units include without the guards, or include
 The header includes `memzone.h` internally, so a separate `#include
 "memzone.h"` is not required.
 
+For zone-backed SHL collections, also include `alloc.h` and define
+`SHL_ALLOC_IMPLEMENTATION` in the implementation translation unit above. It may
+precede or follow `memzone_audit.h`; the adapter is compiled after the audit
+redirections are installed, so its allocation callbacks are logged too.
+
 `SHL_MZ_AUDIT_IMPLEMENTATION` must appear in the same translation unit as
 `SHL_MZ_IMPLEMENTATION` because the realloc wrapper inspects private
 allocator internals (`memblock_t`, `mz__findBlock`, etc.) that are only

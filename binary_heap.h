@@ -32,8 +32,12 @@
 
     ALLOCATION
     Pass an shl_allocator_t* to Init to control where the items buffer lives.
-    Use shl_heap_alloc() for the default system heap.  To use a memzone_t,
-    include memzone.h before this header and call shl_zone_alloc(zone).
+    Pass NULL for the default system heap. Include alloc.h for shl_heap_alloc()
+    and include both alloc.h and memzone.h for shl_zone_alloc(zone), in either
+    order. Define SHL_ALLOC_IMPLEMENTATION in one C file to emit those helpers.
+
+    Define SHL_HEAP_INITIAL_CAPACITY before including this header to override
+    the default initial capacity of 8.
 
     ITEM OWNERSHIP
     The heap stores values by copy and does not manage the lifecycle of
@@ -55,7 +59,56 @@
 #ifndef SHL_HEAP_H
 #define SHL_HEAP_H
 
-#include "internal.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifndef SHL_ALLOCATOR_T_DEFINED
+#define SHL_ALLOCATOR_T_DEFINED
+
+#include <stddef.h>
+
+typedef struct shl_allocator_s
+{
+    void* ctx;
+    void* (*mallocFn)(void* ctx, size_t sz);
+    void* (*reallocFn)(void* ctx, void* ptr, size_t sz);
+    void  (*freeFn)(void* ctx, void* ptr);
+} shl_allocator_t;
+
+#endif /* SHL_ALLOCATOR_T_DEFINED */
+
+#ifndef SHL_HEAP_INITIAL_CAPACITY
+#define SHL_HEAP_INITIAL_CAPACITY 8
+#endif
+
+#if SHL_HEAP_INITIAL_CAPACITY < 1 || SHL_HEAP_INITIAL_CAPACITY > INT32_MAX
+#error "SHL_HEAP_INITIAL_CAPACITY must be a positive int32_t value"
+#endif
+
+static inline void* shl__heapMalloc(void* ctx, size_t sz) { (void)ctx; return malloc(sz); }
+static inline void* shl__heapRealloc(void* ctx, void* ptr, size_t sz) { (void)ctx; return realloc(ptr, sz); }
+static inline void shl__heapFree(void* ctx, void* ptr) { (void)ctx; free(ptr); }
+
+static inline int32_t shl__heapGrownCapacity(int32_t currentCapacity, int32_t minSize)
+{
+    int32_t newCapacity = currentCapacity > 0 ? (currentCapacity << 1) : SHL_HEAP_INITIAL_CAPACITY;
+    if (newCapacity < minSize) newCapacity = minSize;
+    return newCapacity;
+}
+
+static inline bool shl__heapResize(void** items, int32_t* capacity, int32_t minSize, size_t itemSize, shl_allocator_t* alloc)
+{
+    if (!alloc || !alloc->reallocFn) return false;
+    int32_t newCapacity = shl__heapGrownCapacity(*capacity, minSize);
+    void* newItems = alloc->reallocFn(alloc->ctx, *items, (size_t)newCapacity * itemSize);
+    if (!newItems) return false;
+    *capacity = newCapacity;
+    *items = newItems;
+    return true;
+}
 
 #define shlDeclareBinaryHeap(typeName, itemType) \
     typedef struct \
@@ -130,11 +183,12 @@
     void typeName ## Init(typeName* heap, shl_allocator_t* alloc, int32_t (*compareFn)(const itemType item1, const itemType item2)) \
     { \
         *heap = (typeName){ 0 }; \
-        if (!alloc) alloc = shl_heap_alloc(); \
+        static shl_allocator_t heapAlloc = { NULL, shl__heapMalloc, shl__heapRealloc, shl__heapFree }; \
+        if (!alloc) alloc = &heapAlloc; \
         if (!alloc || !alloc->mallocFn || !compareFn) return; \
         heap->alloc     = alloc; \
         heap->compareFn = compareFn; \
-        heap->capacity  = SHL__INITIAL_CAPACITY; \
+        heap->capacity  = SHL_HEAP_INITIAL_CAPACITY; \
         heap->count     = 0; \
         heap->items     = (itemType*)alloc->mallocFn(alloc->ctx, (size_t)heap->capacity * sizeof(itemType)); \
     } \
@@ -153,7 +207,7 @@
             return; \
         \
         if (heap->count + 1 >= heap->capacity) { \
-            if (!shl__resizeArray((void**)&heap->items, &heap->capacity, heap->count + 1, sizeof(itemType), heap->alloc)) \
+            if (!shl__heapResize((void**)&heap->items, &heap->capacity, heap->count + 1, sizeof(itemType), heap->alloc)) \
                 return; \
         } \
         \

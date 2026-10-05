@@ -3,12 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* memzone.h must be included before map.h so that the #ifdef SHL_MZ_H
-   bridge in alloc.h is compiled in. */
 #define SHL_MZ_IMPLEMENTATION
 #include "../memzone.h"
 
 #include "../map.h"
+#define SHL_ALLOC_IMPLEMENTATION
+#include "../alloc.h"
 #include "test_common.h"
 
 static uint32_t hashInt(const int x)

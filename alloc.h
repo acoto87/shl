@@ -24,23 +24,33 @@
     SOFTWARE.
 
     Self-contained single-header with no SHL dependencies.  Include it
-    directly if you only need the allocator type, or include any SHL collection
-    header which pulls it in via internal.h.
+    directly for allocator helpers. Every SHL collection header embeds only
+    the separately guarded allocator type and works without this file.
 
     USAGE
-    Use shl_heap_alloc() for the default system-heap allocator.
+    Define SHL_ALLOC_IMPLEMENTATION before including this header in exactly
+    one translation unit to emit shl_heap_alloc(). Include without the define
+    everywhere else. Collection Init(NULL) works without these helpers.
 
-    For a memzone_t-backed allocator, include memzone.h BEFORE this header
-    (or before any SHL collection header) and call shl_zone_alloc(zone):
+        #define SHL_ALLOC_IMPLEMENTATION
+        #include "alloc.h"
 
-        #include "memzone.h"   // must precede alloc.h / any SHL header
+    For shl_zone_alloc(), also include memzone.h (or memzone_audit.h) in that
+    implementation translation unit and wherever the adapter is used. Both
+    headers may be included in either order. Define implementation switches
+    before the first include:
+
+        #define SHL_ALLOC_IMPLEMENTATION
+        #define SHL_MZ_IMPLEMENTATION
+        #include "alloc.h"
+        #include "memzone.h"
         #include "list.h"
 
         memzone_t*      zone  = mz_init(1 << 20);
         shl_allocator_t alloc = shl_zone_alloc(zone);
         IntListInit(&list, &alloc);
 
-    'zone' must outlive every collection that holds a pointer to 'alloc'.
+    Both 'zone' and 'alloc' must outlive collections using that allocator.
 
     A NULL shl_allocator_t* stored in a collection means the collection owns
     a fixed, externally-provided buffer and will never allocate or free memory.
@@ -49,16 +59,10 @@
 #ifndef SHL_ALLOC_H
 #define SHL_ALLOC_H
 
+#ifndef SHL_ALLOCATOR_T_DEFINED
+#define SHL_ALLOCATOR_T_DEFINED
+
 #include <stddef.h>
-#include <stdlib.h>
-
-/* ---------------------------------------------------------------------------
-   shl_allocator_t — per-instance allocator interface
-
-   A single shared instance can back multiple collections simultaneously.
-   NULL function pointers are not permitted; use shl_heap_alloc() for the
-   default system heap.
-   --------------------------------------------------------------------------- */
 
 typedef struct shl_allocator_s
 {
@@ -68,34 +72,74 @@ typedef struct shl_allocator_s
     void  (*freeFn)(void* ctx, void* ptr);
 } shl_allocator_t;
 
-static inline void* shl__heap_malloc_fn(void* ctx, size_t sz)             { (void)ctx; return malloc(sz); }
-static inline void* shl__heap_realloc_fn(void* ctx, void* ptr, size_t sz) { (void)ctx; return realloc(ptr, sz); }
-static inline void  shl__heap_free_fn(void* ctx, void* ptr)               { (void)ctx; free(ptr); }
+#endif /* SHL_ALLOCATOR_T_DEFINED */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Returns a pointer to a stable shl_allocator_t backed by the system heap
    (malloc / realloc / free). The returned pointer is valid for the lifetime
    of the program and may be shared freely across collections and threads. */
-static inline shl_allocator_t* shl_heap_alloc(void)
+shl_allocator_t* shl_heap_alloc(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* SHL_ALLOC_H */
+
+/* Outside the declaration guard: a later implementation include is allowed. */
+#if defined(SHL_ALLOC_IMPLEMENTATION) && !defined(SHL_ALLOC_IMPLEMENTED)
+#define SHL_ALLOC_IMPLEMENTED
+
+#include <stdlib.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static void* shl__heap_malloc_fn(void* ctx, size_t sz)             { (void)ctx; return malloc(sz); }
+static void* shl__heap_realloc_fn(void* ctx, void* ptr, size_t sz) { (void)ctx; return realloc(ptr, sz); }
+static void  shl__heap_free_fn(void* ctx, void* ptr)               { (void)ctx; free(ptr); }
+
+shl_allocator_t* shl_heap_alloc(void)
 {
     static shl_allocator_t heap = { NULL, shl__heap_malloc_fn, shl__heap_realloc_fn, shl__heap_free_fn };
     return &heap;
 }
 
-/* ---------------------------------------------------------------------------
-   Optional memzone.h bridge
+#ifdef __cplusplus
+}
+#endif
 
-   Compiled only when memzone.h has been included before this header.
-   --------------------------------------------------------------------------- */
+#endif /* SHL_ALLOC_IMPLEMENTATION && !SHL_ALLOC_IMPLEMENTED */
 
-#ifdef SHL_MZ_H
+/* The second header to be included supplies this optional adapter. */
+#if defined(SHL_ALLOC_H) && defined(SHL_MZ_H)
 
-static inline void* shl__mz_malloc_fn(void* ctx, size_t sz)             { return mz_alloc((memzone_t*)ctx, sz); }
-static inline void* shl__mz_realloc_fn(void* ctx, void* ptr, size_t sz) { return mz_realloc((memzone_t*)ctx, ptr, sz); }
-static inline void shl__mz_free_fn(void* ctx, void* ptr)                { mz_free((memzone_t*)ctx, ptr); }
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef SHL_ZONE_ALLOC_H
+#define SHL_ZONE_ALLOC_H
+
+/* The zone and returned allocator must outlive collections using them. */
+shl_allocator_t shl_zone_alloc(memzone_t* zone);
+
+#endif /* SHL_ZONE_ALLOC_H */
+
+#if defined(SHL_ALLOC_IMPLEMENTATION) && !defined(SHL_ZONE_ALLOC_IMPLEMENTED)
+#define SHL_ZONE_ALLOC_IMPLEMENTED
+
+static void* shl__mz_malloc_fn(void* ctx, size_t sz)             { return mz_alloc((memzone_t*)ctx, sz); }
+static void* shl__mz_realloc_fn(void* ctx, void* ptr, size_t sz) { return mz_realloc((memzone_t*)ctx, ptr, sz); }
+static void shl__mz_free_fn(void* ctx, void* ptr)                { mz_free((memzone_t*)ctx, ptr); }
 
 /* Returns an shl_allocator_t value backed by zone.
    Store the returned value and pass its address to collection Init functions. */
-static inline shl_allocator_t shl_zone_alloc(memzone_t* zone)
+shl_allocator_t shl_zone_alloc(memzone_t* zone)
 {
     shl_allocator_t a;
     a.ctx       = zone;
@@ -105,6 +149,10 @@ static inline shl_allocator_t shl_zone_alloc(memzone_t* zone)
     return a;
 }
 
-#endif /* SHL_MZ_H */
+#endif /* SHL_ALLOC_IMPLEMENTATION && !SHL_ZONE_ALLOC_IMPLEMENTED */
 
-#endif /* SHL_ALLOC_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* SHL_ALLOC_H && SHL_MZ_H */

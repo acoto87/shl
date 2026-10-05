@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* memzone.h must be included before stack.h so that the #ifdef SHL_MZ_H
-   bridge in alloc.h is compiled in. */
+#define SHL_ALLOC_IMPLEMENTATION
+#include "../alloc.h"
 #define SHL_MZ_IMPLEMENTATION
 #include "../memzone.h"
 

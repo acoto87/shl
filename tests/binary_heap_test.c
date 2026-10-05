@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "../binary_heap.h"
+#define SHL_ALLOC_IMPLEMENTATION
+#include "../alloc.h"
 #include "test_common.h"
 
 static int32_t compareInt(const int a, const int b)

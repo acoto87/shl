@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "tests/header_checks.h"
+
 typedef struct
 {
     const char* source;
@@ -102,6 +104,7 @@ static const BenchTarget* find_bench_target(const char* name)
 static void print_usage(const char* program)
 {
     nob_log(NOB_INFO, "Usage: %s [build|test|asan|ubsan|valgrind|bench] [all|name]", program);
+    nob_log(NOB_INFO, "       %s [headers|sync-headers]", program);
     nob_log(NOB_INFO, "Examples: %s test, %s test wstr_test, %s asan array_test, %s ubsan fixed_point_test, %s bench list_bench", program, program, program, program, program);
 }
 
@@ -243,7 +246,7 @@ static bool run_benches(const char* out_dir, const BenchTarget* selected_target)
 
 int main(int argc, char** argv)
 {
-    NOB_GO_REBUILD_URSELF(argc, argv);
+    NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "tests/header_checks.h");
 
     const char* command = argc > 1 ? argv[1] : "build";
     const char* test_name = argc > 2 ? argv[2] : NULL;
@@ -257,6 +260,17 @@ int main(int argc, char** argv)
         nob_log(NOB_ERROR, "Too many arguments.");
         print_usage(argv[0]);
         return 1;
+    }
+
+    if (strcmp(command, "headers") == 0 || strcmp(command, "sync-headers") == 0)
+    {
+        if (argc > 2)
+        {
+            print_usage(argv[0]);
+            return 1;
+        }
+        return (strcmp(command, "headers") == 0
+            ? run_header_checks() : sync_embedded_headers(true)) ? 0 : 1;
     }
 
     if (strcmp(command, "bench") == 0)
@@ -336,6 +350,9 @@ int main(int argc, char** argv)
             return 1;
         }
     }
+
+    if (strcmp(command, "test") == 0 && selected_target == NULL && !run_header_checks())
+        return 1;
 
     if (!build_tests(mode, out_dir, selected_target))
         return 1;
