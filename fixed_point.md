@@ -118,7 +118,7 @@ Division by zero returns `SHL_FP_ZERO`. `fp_sqrt` returns `SHL_FP_ZERO` for zero
 | `fp_floor`(fp32 x) | Returns the greatest representable whole fixed-point value less than or equal to `x`. | `fp32` |
 | `fp_ceil`(fp32 x) | Returns the smallest representable whole fixed-point value greater than or equal to `x`, except when clamped at the positive whole-value boundary. | `fp32` |
 | `fp_round`(fp32 x) | Rounds to the nearest whole fixed-point value, with exact ties away from zero. | `fp32` |
-| `fp_frac`(fp32 x) | Returns the mathematical fractional part in the range `[SHL_FP_ZERO, FP_ONE)`. | `fp32` |
+| `fp_frac`(fp32 x) | Returns the mathematical fractional part in the range `[SHL_FP_ZERO, SHL_FP_ONE)`. | `fp32` |
 
 `fp_frac` follows the mathematical definition `x - floor(x)`. For example, the fractional part of `-1.25` is `0.75`.
 
