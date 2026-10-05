@@ -167,19 +167,19 @@ void test_ReadMemory_SkipsExtraMetadataChunk(void)
 
     uint8_t* p = buf;
     memcpy(p, "RIFF", 4);           p += 4;
-    *(uint32_t*)p = overall;        p += 4;
+    mw_write_u32_le(p, overall);    p += 4;
     memcpy(p, "WAVE", 4);           p += 4;
     memcpy(p, "fmt ", 4);           p += 4;
-    *(uint32_t*)p = fmt_length;     p += 4;
-    *(uint16_t*)p = 1;              p += 2;  /* PCM */
-    *(uint16_t*)p = 1;              p += 2;  /* mono */
-    *(uint32_t*)p = 11025;          p += 4;  /* sample rate */
-    *(uint32_t*)p = 11025;          p += 4;  /* byte rate */
-    *(uint16_t*)p = 1;              p += 2;  /* block align */
-    *(uint16_t*)p = 8;              p += 2;  /* bits */
+    mw_write_u32_le(p, fmt_length); p += 4;
+    mw_write_u16_le(p, 1);          p += 2;  /* PCM */
+    mw_write_u16_le(p, 1);          p += 2;  /* mono */
+    mw_write_u32_le(p, 11025);      p += 4;  /* sample rate */
+    mw_write_u32_le(p, 11025);      p += 4;  /* byte rate */
+    mw_write_u16_le(p, 1);          p += 2;  /* block align */
+    mw_write_u16_le(p, 8);          p += 2;  /* bits */
     memcpy(p, list_chunk, list_sz); p += list_sz;
     memcpy(p, "data", 4);           p += 4;
-    *(uint32_t*)p = data_sz;        p += 4;
+    mw_write_u32_le(p, data_sz);    p += 4;
     memcpy(p, pcm, data_sz);
 
     mw_audio_buffer parsed = {0};
@@ -378,6 +378,36 @@ void test_Resample_ZeroRate_Returns0(void)
     make_audio(&src, 1, 11025, 8, 4);
     mw_audio_buffer dst = {0};
     TEST_ASSERT_EQUAL_INT(0, mw_resample_pcm(&src, &dst, 0));
+    mw_free_buffer(&src);
+}
+
+void test_Resample_ZeroSourceRate_Returns0(void)
+{
+    mw_audio_buffer src = {0};
+    make_audio(&src, 1, 11025, 8, 4);
+    src.sample_rate = 0;
+    mw_audio_buffer dst = {0};
+    TEST_ASSERT_EQUAL_INT(0, mw_resample_pcm(&src, &dst, 22050));
+    mw_free_buffer(&src);
+}
+
+void test_Resample_ZeroChannels_Returns0(void)
+{
+    mw_audio_buffer src = {0};
+    make_audio(&src, 1, 11025, 8, 4);
+    src.channels = 0;
+    mw_audio_buffer dst = {0};
+    TEST_ASSERT_EQUAL_INT(0, mw_resample_pcm(&src, &dst, 22050));
+    mw_free_buffer(&src);
+}
+
+void test_Resample_UnsupportedBits_Returns0(void)
+{
+    mw_audio_buffer src = {0};
+    make_audio(&src, 1, 11025, 8, 4);
+    src.bits_per_sample = 24;
+    mw_audio_buffer dst = {0};
+    TEST_ASSERT_EQUAL_INT(0, mw_resample_pcm(&src, &dst, 22050));
     mw_free_buffer(&src);
 }
 
@@ -684,6 +714,9 @@ int main(void)
     RUN_TEST(test_Resample_NullSrc_Returns0);
     RUN_TEST(test_Resample_NullDst_Returns0);
     RUN_TEST(test_Resample_ZeroRate_Returns0);
+    RUN_TEST(test_Resample_ZeroSourceRate_Returns0);
+    RUN_TEST(test_Resample_ZeroChannels_Returns0);
+    RUN_TEST(test_Resample_UnsupportedBits_Returns0);
     RUN_TEST(test_Resample_NullData_Returns0);
 
     /* Resample — identity */

@@ -125,6 +125,26 @@ void   mw_free_buffer(mw_audio_buffer* audio);
 #include <string.h>
 #include <stdio.h>
 
+static inline uint16_t mw_read_u16_le(const uint8_t* p) {
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static inline uint32_t mw_read_u32_le(const uint8_t* p) {
+    return (uint32_t)((uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24));
+}
+
+static inline void mw_write_u16_le(uint8_t* p, uint16_t value) {
+    p[0] = (uint8_t)(value & 0xFFu);
+    p[1] = (uint8_t)((value >> 8) & 0xFFu);
+}
+
+static inline void mw_write_u32_le(uint8_t* p, uint32_t value) {
+    p[0] = (uint8_t)(value & 0xFFu);
+    p[1] = (uint8_t)((value >> 8) & 0xFFu);
+    p[2] = (uint8_t)((value >> 16) & 0xFFu);
+    p[3] = (uint8_t)((value >> 24) & 0xFFu);
+}
+
 // Parse a wave file directly from a block of memory
 int32_t mw_read_memory(const void* buffer, size_t buffer_size, mw_audio_buffer* out_audio) {
     if (!buffer || buffer_size < sizeof(mw_wav_header) || !out_audio) return 0;
@@ -144,13 +164,13 @@ int32_t mw_read_memory(const void* buffer, size_t buffer_size, mw_audio_buffer* 
         if (memcmp(data_ptr, "data", 4) == 0) {
             break;
         }
-        uint32_t chunk_size = *(const uint32_t*)(data_ptr + 4);
+        uint32_t chunk_size = mw_read_u32_le(data_ptr + 4);
         data_ptr += 8 + chunk_size; // Skip metadata chunks like LIST, metadata, tags
     }
 
     if (data_ptr + 8 > (const uint8_t*)buffer + buffer_size) return 0;
 
-    uint32_t data_size = *(const uint32_t*)(data_ptr + 4);
+    uint32_t data_size = mw_read_u32_le(data_ptr + 4);
     data_ptr += 8; // Advance past chunk header to start of raw samples
 
     if (data_ptr + data_size > (const uint8_t*)buffer + buffer_size) return 0;
@@ -302,6 +322,8 @@ static void mw_downsample_4x_u8(const uint8_t* src, uint8_t* dst, int32_t target
 // Uses fast-paths for factors of 2 and 4 on 8-bit mono streams, fallback linear tracker otherwise.
 int32_t mw_resample_pcm(const mw_audio_buffer* src, mw_audio_buffer* dst, uint32_t target_sample_rate) {
     if (!src || !dst || !src->data || src->data_length == 0 || target_sample_rate == 0) return 0;
+    if (src->sample_rate == 0 || src->channels == 0) return 0;
+    if (src->bits_per_sample != 8 && src->bits_per_sample != 16) return 0;
 
     dst->channels = src->channels;
     dst->bits_per_sample = src->bits_per_sample;
@@ -317,6 +339,7 @@ int32_t mw_resample_pcm(const mw_audio_buffer* src, mw_audio_buffer* dst, uint32
     }
 
     uint32_t bytes_per_sample = (src->bits_per_sample / 8) * src->channels;
+    if (bytes_per_sample == 0) return 0;
     int32_t total_src_samples = src->data_length / bytes_per_sample;
 
     // Evaluate Fast-Paths exclusively for 8-bit Mono streams
@@ -380,20 +403,22 @@ int32_t mw_resample_pcm(const mw_audio_buffer* src, mw_audio_buffer* dst, uint32
                 int32_t b = src->data[byte_pos2];
 
                 size_t dest_pos = (size_t)i * src->channels + ch;
-                dst->data[dest_pos] = (uint8_t)(a + (((b - a) * frac) >> 16));
+                int64_t delta = (int64_t)b - (int64_t)a;
+                dst->data[dest_pos] = (uint8_t)(a + (int32_t)((delta * frac) >> 16));
             }
             else if (src->bits_per_sample == 16) {
-                const int16_t* src_s16 = (const int16_t*)src->data;
-                int16_t* dst_s16 = (int16_t*)dst->data;
-
                 size_t sample_pos1 = (size_t)src_idx1 * src->channels + ch;
                 size_t sample_pos2 = (size_t)src_idx2 * src->channels + ch;
 
-                int32_t a = src_s16[sample_pos1];
-                int32_t b = src_s16[sample_pos2];
+                size_t byte_pos1 = sample_pos1 * sizeof(int16_t);
+                size_t byte_pos2 = sample_pos2 * sizeof(int16_t);
+                int32_t a = (int32_t)(int16_t)mw_read_u16_le(src->data + byte_pos1);
+                int32_t b = (int32_t)(int16_t)mw_read_u16_le(src->data + byte_pos2);
 
                 size_t dest_pos = (size_t)i * src->channels + ch;
-                dst_s16[dest_pos] = (int16_t)(a + (((b - a) * frac) >> 16));
+                int64_t delta = (int64_t)b - (int64_t)a;
+                mw_write_u16_le(dst->data + dest_pos * sizeof(int16_t),
+                    (uint16_t)(int16_t)(a + (int32_t)((delta * frac) >> 16)));
             }
         }
         current_fixed_pos += step_fixed;

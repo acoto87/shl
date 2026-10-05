@@ -114,15 +114,15 @@ void   mv_free_buffer(mv_audio_buffer* audio);
 
 /* Inline memory parsing helpers to ensure optimization without generic memcpy */
 static inline uint16_t mv_read_u16_le(const uint8_t* p) {
-    return (uint16_t)(p[0] | (p[1] << 8));
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
 }
 
 static inline uint32_t mv_read_u24_le(const uint8_t* p) {
-    return (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16));
+    return (uint32_t)((uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16));
 }
 
 static inline uint32_t mv_read_u32_le(const uint8_t* p) {
-    return (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
+    return (uint32_t)((uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24));
 }
 
 static inline void mv_write_u16_le(uint8_t* p, uint16_t val) {
@@ -404,6 +404,8 @@ static void mv_downsample_4x_u8(const uint8_t* src, uint8_t* dst, int32_t target
 // Decoupled streaming resampler interface
 int32_t mv_resample_pcm(const mv_audio_buffer* src, mv_audio_buffer* dst, uint32_t target_sample_rate) {
     if (!src || !dst || !src->data || src->data_length == 0 || target_sample_rate == 0) return 0;
+    if (src->sample_rate == 0 || src->channels == 0) return 0;
+    if (src->bits_per_sample != 8 && src->bits_per_sample != 16) return 0;
 
     dst->channels = src->channels;
     dst->bits_per_sample = src->bits_per_sample;
@@ -418,6 +420,7 @@ int32_t mv_resample_pcm(const mv_audio_buffer* src, mv_audio_buffer* dst, uint32
     }
 
     uint32_t bytes_per_sample = (src->bits_per_sample / 8) * src->channels;
+    if (bytes_per_sample == 0) return 0;
     int32_t total_src_samples = src->data_length / bytes_per_sample;
 
     // Evaluate Fast-Paths exclusively for 8-bit Mono streams
@@ -478,20 +481,22 @@ int32_t mv_resample_pcm(const mv_audio_buffer* src, mv_audio_buffer* dst, uint32
                 int32_t b = src->data[byte_pos2];
 
                 size_t dest_pos = (size_t)i * src->channels + ch;
-                dst->data[dest_pos] = (uint8_t)(a + (((b - a) * frac) >> 16));
+                int64_t delta = (int64_t)b - (int64_t)a;
+                dst->data[dest_pos] = (uint8_t)(a + (int32_t)((delta * frac) >> 16));
             }
             else if (src->bits_per_sample == 16) {
-                const int16_t* src_s16 = (const int16_t*)src->data;
-                int16_t* dst_s16 = (int16_t*)dst->data;
-
                 size_t sample_pos1 = (size_t)src_idx1 * src->channels + ch;
                 size_t sample_pos2 = (size_t)src_idx2 * src->channels + ch;
 
-                int32_t a = src_s16[sample_pos1];
-                int32_t b = src_s16[sample_pos2];
+                size_t byte_pos1 = sample_pos1 * sizeof(int16_t);
+                size_t byte_pos2 = sample_pos2 * sizeof(int16_t);
+                int32_t a = (int32_t)(int16_t)mv_read_u16_le(src->data + byte_pos1);
+                int32_t b = (int32_t)(int16_t)mv_read_u16_le(src->data + byte_pos2);
 
                 size_t dest_pos = (size_t)i * src->channels + ch;
-                dst_s16[dest_pos] = (int16_t)(a + (((b - a) * frac) >> 16));
+                int64_t delta = (int64_t)b - (int64_t)a;
+                mv_write_u16_le(dst->data + dest_pos * sizeof(int16_t),
+                    (uint16_t)(int16_t)(a + (int32_t)((delta * frac) >> 16)));
             }
         }
         current_fixed_pos += step_fixed;

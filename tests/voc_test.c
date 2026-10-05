@@ -578,6 +578,36 @@ void test_Resample_ZeroRate_Returns0(void)
     mv_free_buffer(&src);
 }
 
+void test_Resample_ZeroSourceRate_Returns0(void)
+{
+    mv_audio_buffer src = {0};
+    make_audio(&src, 1, 11025, 8, 4);
+    src.sample_rate = 0;
+    mv_audio_buffer dst = {0};
+    TEST_ASSERT_EQUAL_INT(0, mv_resample_pcm(&src, &dst, 22050));
+    mv_free_buffer(&src);
+}
+
+void test_Resample_ZeroChannels_Returns0(void)
+{
+    mv_audio_buffer src = {0};
+    make_audio(&src, 1, 11025, 8, 4);
+    src.channels = 0;
+    mv_audio_buffer dst = {0};
+    TEST_ASSERT_EQUAL_INT(0, mv_resample_pcm(&src, &dst, 22050));
+    mv_free_buffer(&src);
+}
+
+void test_Resample_UnsupportedBits_Returns0(void)
+{
+    mv_audio_buffer src = {0};
+    make_audio(&src, 1, 11025, 8, 4);
+    src.bits_per_sample = 24;
+    mv_audio_buffer dst = {0};
+    TEST_ASSERT_EQUAL_INT(0, mv_resample_pcm(&src, &dst, 22050));
+    mv_free_buffer(&src);
+}
+
 void test_Resample_NullData_Returns0(void)
 {
     mv_audio_buffer src = { 1, 11025, 8, 100, NULL };
@@ -813,6 +843,9 @@ int main(void)
     RUN_TEST(test_Resample_NullSrc_Returns0);
     RUN_TEST(test_Resample_NullDst_Returns0);
     RUN_TEST(test_Resample_ZeroRate_Returns0);
+    RUN_TEST(test_Resample_ZeroSourceRate_Returns0);
+    RUN_TEST(test_Resample_ZeroChannels_Returns0);
+    RUN_TEST(test_Resample_UnsupportedBits_Returns0);
     RUN_TEST(test_Resample_NullData_Returns0);
 
     /* Resample identity */
