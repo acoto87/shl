@@ -1,12 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* memzone.h must be included before list.h so that the #ifdef SHL_MZ_H
-   bridge in shl_internal.h is compiled in. */
 #define SHL_MZ_IMPLEMENTATION
 #include "../memzone.h"
 
 #include "../list.h"
+#define SHL_ALLOC_IMPLEMENTATION
+#include "../alloc.h"
 #include "test_common.h"
 
 static bool intEquals(const int x, const int y)

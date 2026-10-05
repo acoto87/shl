@@ -114,9 +114,9 @@ typedef uint8_t fp_angle; // 0-255 binary angle (naturally wraps 360 degrees)
  * CONSTANTS DECLARATIONS
  * ========================================================================= */
 
-#define FP_ZERO ((fp32)0)
-#define FP_ONE  ((fp32)FP_SCALE)
-#define FP_HALF ((fp32)(FP_SCALE / 2))
+#define SHL_FP_ZERO ((fp32)0)
+#define SHL_FP_ONE  ((fp32)FP_SCALE)
+#define SHL_FP_HALF ((fp32)(FP_SCALE / 2))
 
 /* ========================================================================= *
  * FUNCTION DECLARATIONS (API)

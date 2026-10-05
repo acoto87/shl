@@ -53,6 +53,10 @@
     Use mz_setReporter to install custom diagnostics, mz_validate to sanity-
     check the zone, and mz_free only with pointers that came from the zone.
 
+    Include alloc.h in either order for shl_zone_alloc(). Define
+    SHL_ALLOC_IMPLEMENTATION before both includes in exactly one translation
+    unit to emit the adapter; it can share the zone implementation TU.
+
     See memzone.md file for more information about memory layout for each allocation/deallocation.
 
 */
@@ -943,3 +947,47 @@ float mz_fragmentation(const memzone_t* zone)
 
 #endif // SHL_MZ_IMPLEMENTATION
 #endif // SHL_MZ_H
+
+/* The audit header supplies the adapter after installing its redirections. */
+#ifndef SHL_MZ_AUDIT_H
+#if defined(SHL_ALLOC_H) && defined(SHL_MZ_H)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef SHL_ZONE_ALLOC_H
+#define SHL_ZONE_ALLOC_H
+
+/* The zone and returned allocator must outlive collections using them. */
+shl_allocator_t shl_zone_alloc(memzone_t* zone);
+
+#endif /* SHL_ZONE_ALLOC_H */
+
+#if defined(SHL_ALLOC_IMPLEMENTATION) && !defined(SHL_ZONE_ALLOC_IMPLEMENTED)
+#define SHL_ZONE_ALLOC_IMPLEMENTED
+
+static void* shl__mz_malloc_fn(void* ctx, size_t sz)             { return mz_alloc((memzone_t*)ctx, sz); }
+static void* shl__mz_realloc_fn(void* ctx, void* ptr, size_t sz) { return mz_realloc((memzone_t*)ctx, ptr, sz); }
+static void shl__mz_free_fn(void* ctx, void* ptr)                { mz_free((memzone_t*)ctx, ptr); }
+
+/* Returns an shl_allocator_t value backed by zone.
+   Store the returned value and pass its address to collection Init functions. */
+shl_allocator_t shl_zone_alloc(memzone_t* zone)
+{
+    shl_allocator_t a;
+    a.ctx       = zone;
+    a.mallocFn  = shl__mz_malloc_fn;
+    a.reallocFn = shl__mz_realloc_fn;
+    a.freeFn    = shl__mz_free_fn;
+    return a;
+}
+
+#endif /* SHL_ALLOC_IMPLEMENTATION && !SHL_ZONE_ALLOC_IMPLEMENTED */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* SHL_ALLOC_H && SHL_MZ_H */
+#endif /* !SHL_MZ_AUDIT_H */

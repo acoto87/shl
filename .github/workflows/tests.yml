@@ -31,5 +31,8 @@ jobs:
       - name: Run AddressSanitizer test suite
         run: ./nob asan
 
+      - name: Run UndefinedBehaviorSanitizer test suite
+        run: ./nob ubsan
+
       - name: Run Valgrind leak checks
         run: ./nob valgrind
